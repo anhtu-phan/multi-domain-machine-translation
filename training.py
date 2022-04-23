@@ -2,7 +2,8 @@ import torch
 import torch.nn as nn
 import spacy
 from torchtext.legacy.data import Field, TabularDataset, BucketIterator
-import time
+import wandb
+from tqdm import tqdm
 
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 
@@ -27,27 +28,32 @@ train_data, valid_data, test_data = TabularDataset.splits(path='./datasets/de-en
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-BATCH_SIZE = 16
+CONFIG = {
+    "LEARNING_RATE": 0.0005,
+    "BATCH_SIZE": 16,
+    "HID_DIM": 512,
+    "ENC_LAYERS": 6,
+    "DEC_LAYERS": 6,
+    "ENC_HEADS": 4,
+    "DEC_HEADS": 4,
+    "ENC_PF_DIM": 1024,
+    "DEC_PF_DIM": 1024,
+    "ENC_DROPOUT": 0.1,
+    "DEC_DROPOUT": 0.1,
+    "N_EPOCHS": 10,
+    "CLIP": 1,
+}
 
-train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data), batch_size=BATCH_SIZE, device=device)
+train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data), batch_size=CONFIG["BATCH_SIZE"], device=device)
 
 SRC.build_vocab(train_data, min_freq=2)
 TRG.build_vocab(train_data, min_freq=2)
 
 INPUT_DIM = len(SRC.vocab)
 OUTPUT_DIM = len(TRG.vocab)
-HID_DIM = 256
-ENC_LAYERS = 3
-DEC_LAYERS = 3
-ENC_HEADS = 8
-DEC_HEADS = 8
-ENC_PF_DIM = 512
-DEC_PF_DIM = 512
-ENC_DROPOUT = 0.1
-DEC_DROPOUT = 0.1
 
-enc = Encoder(INPUT_DIM, HID_DIM, ENC_LAYERS, ENC_HEADS, ENC_PF_DIM, ENC_DROPOUT, device)
-dec = Decoder(OUTPUT_DIM, HID_DIM, DEC_LAYERS, DEC_HEADS, DEC_PF_DIM, DEC_DROPOUT, device)
+enc = Encoder(INPUT_DIM, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'], CONFIG['ENC_DROPOUT'], device)
+dec = Decoder(OUTPUT_DIM, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'], CONFIG['DEC_PF_DIM'], CONFIG['DEC_DROPOUT'], device)
 
 SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
 TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
@@ -69,11 +75,12 @@ def initialize_weights(m):
 
 model.apply(initialize_weights)
 
-LEARNING_RATE = 0.0005
-
-optimizer = torch.optim.Adam(model.parameters(), lr=LEARNING_RATE)
+optimizer = torch.optim.Adam(model.parameters(), lr=CONFIG['LEARNING_RATE'])
 
 criterion = nn.CrossEntropyLoss(ignore_index=TRC_PAD_IDX)
+
+wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=True)
+wandb.watch(model, log='all')
 
 
 def train(model, iterator, optimizer, criterion, clip):
@@ -123,31 +130,20 @@ def evaluate(model, iterator, criterion):
     return epoch_loss / len(iterator)
 
 
-def epoch_time(start_time, end_time):
-    elapsed_time = end_time - start_time
-    elapsed_mins = int(elapsed_time / 60)
-    elapsed_secs = int(elapsed_time - (elapsed_mins*60))
-    return elapsed_mins, elapsed_secs
-
-
-N_EPOCHS = 10
-CLIP = 1
 saved_model_path = './checkpoints/model_de_en/'
 best_valid_loss = float('inf')
+saved_epoch = 0
 
-for epoch in range(N_EPOCHS):
-    start_time = time.time()
+for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
+    logs = dict()
 
-    train_loss = train(model, train_iterator, optimizer, criterion, CLIP)
+    train_loss = train(model, train_iterator, optimizer, criterion, CONFIG['CLIP'])
     valid_loss = evaluate(model, valid_iterator, criterion)
-
-    end_time = time.time()
-
-    epoch_mins, epoch_secs = epoch_time(start_time, end_time)
+    logs['train_loss'] = train_loss
+    logs['valid_loss'] = valid_loss
 
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
         torch.save(model.state_dict(), f'{saved_model_path}/model.pt')
 
-    print(f'Epoch: {epoch+1} | Time: {epoch_mins}m {epoch_secs}s')
-    print(f'\tTrain loss: {train_loss:.3f} | Val. Loss: {valid_loss:.3f}')
+    wandb.log(logs, step=epoch)

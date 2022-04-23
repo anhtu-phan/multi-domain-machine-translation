@@ -1,24 +1,19 @@
-antlr4-python3-runtime==4.8
-autopep8 @ file:///opt/conda/conda-bld/autopep8_1639166893812/work
 bitarray==2.3.6
 certifi==2020.6.20
 cffi==1.15.0
 colorama==0.4.4
 Cython==0.29.28
 dataclasses==0.8
--e git+https://github.com/pytorch/fairseq@5b87224417553f411db51a908a664c1d861696fc#egg=fairseq
 hydra-core==1.0.7
 importlib-resources==5.4.0
 numpy==1.19.5
 omegaconf==2.0.6
 portalocker==2.4.0
-pycodestyle @ file:///tmp/build/80754af9/pycodestyle_1636635402688/work
 pycparser==2.21
 PyYAML==6.0
 regex==2022.1.18
 sacrebleu==2.0.0
 tabulate==0.8.9
-toml @ file:///tmp/build/80754af9/toml_1616166611790/work
 torch==1.10.2
 torchaudio==0.10.2
 tqdm==4.62.3
@@ -29,3 +24,4 @@ spacy~=3.2.4
 torchtext~=0.11.2
 pandas~=1.1.5
 six~=1.16.0
+wandb~=0.12.15
