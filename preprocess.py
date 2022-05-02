@@ -2,10 +2,15 @@ import os
 import sys
 import codecs
 from mosestokenizer import *
-from torchtext.legacy.data import Field
+from torchtext.legacy.data import Field, TabularDataset
 from torchtext.legacy.datasets import TranslationDataset
 from learn_bpe import learn_bpe
 from apply_bpe import BPE
+
+tokenize_src = MosesTokenizer('en')
+tokenize_trg = MosesTokenizer("de")
+MAX_LEN = 100
+data_dir = "./datasets/de-en/mixed"
 
 
 def encode_file(bpe, in_file, out_file):
@@ -30,11 +35,29 @@ def encode_files(bpe, src_in_file, trg_in_file, data_dir, prefix):
     return src_out_file, trg_out_file
 
 
-def main():
+def main(use_bpe=False):
+    if use_bpe:
+        return build_bpe_data()
+    else:
+        SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
+                    batch_first=True)
+        TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
+                    batch_first=True)
 
+        fields = [('src', SRC), ('trg', TRG)]
+
+        train_data, valid_data, test_data = TabularDataset.splits(path=data_dir, train='train.tsv',
+                                                                  test='test.tsv', validation='valid.tsv', format='tsv',
+                                                                  fields=fields, skip_header=True)
+        SRC.build_vocab(train_data, min_freq=2)
+        TRG.build_vocab(train_data, min_freq=2)
+
+        return (SRC, TRG), train_data, valid_data, test_data
+
+
+def build_bpe_data():
     # Build up the code from training files if not exist
     codes = "./datasets/de-en/mixed/codes_bpe.txt"
-    data_dir = "./datasets/de-en/mixed"
     train_src_path = f"{data_dir}/train.en"
     train_trg_path = f"{data_dir}/train.de"
     val_src_path = f"{data_dir}/valid.en"
@@ -44,9 +67,6 @@ def main():
     enc_train_files_prefix = 'bpe-train'
     enc_val_files_prefix = 'bpe-val'
     enc_test_files_prefix = 'bpe-test'
-
-    tokenize_src = MosesTokenizer('en')
-    tokenize_trg = MosesTokenizer("de")
 
     if not os.path.isfile(codes):
         sys.stderr.write(f"Collect codes from training data and save to {codes}.\n")
@@ -63,8 +83,6 @@ def main():
     encode_files(bpe, val_src_path, val_trg_path, data_dir, enc_val_files_prefix)
     encode_files(bpe, test_src_path, test_trg_path, data_dir, enc_test_files_prefix)
     sys.stderr.write(f"Done.\n")
-
-    MAX_LEN = 100
 
     SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>',
                 fix_length=MAX_LEN, lower=True, batch_first=True)

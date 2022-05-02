@@ -81,10 +81,10 @@ CONFIG = {
     "ENC_DROPOUT": 0.2,
     "DEC_DROPOUT": 0.2,
     "N_EPOCHS": 1000000,
-    "CLIP": 1,
+    "CLIP": 1
 }
 
-(SRC, TRG), train_data, valid_data, test_data = preprocess.main()
+(SRC, TRG), train_data, valid_data, test_data = preprocess.main(use_bpe=False)
 
 train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data),
                                                                       sort_key=lambda x: len(x.src),
