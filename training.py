@@ -87,8 +87,9 @@ CONFIG = {
 (SRC, TRG), train_data, valid_data, test_data = preprocess.main()
 
 train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data),
+                                                                      sort_key=lambda x: len(x.src),
+                                                                      sort_within_batch=False,
                                                                       batch_size=CONFIG["BATCH_SIZE"], device=device)
-
 
 INPUT_DIM = len(SRC.vocab)
 OUTPUT_DIM = len(TRG.vocab)
