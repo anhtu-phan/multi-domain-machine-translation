@@ -1,24 +1,13 @@
 import torch
 import torch.nn as nn
-import spacy
-from torchtext.legacy.data import Field, TabularDataset, BucketIterator
+from torchtext.legacy.data import BucketIterator
 import wandb
 from tqdm import tqdm
 import os
 
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 from transformer_pytorch.optim import SchedulerOptim
-
-spacy_de = spacy.load('de_core_news_sm')
-spacy_en = spacy.load('en_core_web_sm')
-
-
-def tokenize_de(text):
-    return [tok.text for tok in spacy_de.tokenizer(text)]
-
-
-def tokenize_en(text):
-    return [tok.text for tok in spacy_en.tokenizer(text)]
+import preprocess
 
 
 def count_parameters(model):
@@ -34,8 +23,8 @@ def train(model, iterator, optimizer, criterion, clip):
     model.train()
     epoch_loss = 0
     for i, batch in enumerate(iterator):
-        src = batch.source
-        trg = batch.target
+        src = batch.src
+        trg = batch.trg
 
         optimizer.zero_grad()
         output, _ = model(src, trg[:, :-1])
@@ -62,8 +51,8 @@ def evaluate(model, iterator, criterion):
     epoch_loss = 0
     with torch.no_grad():
         for i, batch in enumerate(iterator):
-            src = batch.source
-            trg = batch.target
+            src = batch.src
+            trg = batch.trg
 
             output, _ = model(src, trg[:, :-1])
             output_dim = output.shape[-1]
@@ -76,15 +65,6 @@ def evaluate(model, iterator, criterion):
 
     return epoch_loss / len(iterator)
 
-
-SRC = Field(tokenize=tokenize_en, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
-TRG = Field(tokenize=tokenize_de, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
-
-fields = [('source', SRC), ('target', TRG)]
-
-train_data, valid_data, test_data = TabularDataset.splits(path='./datasets/de-en/mixed', train='train.tsv',
-                                                          test='test.tsv', validation='valid.tsv', format='tsv',
-                                                          fields=fields, skip_header=True)
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -104,15 +84,11 @@ CONFIG = {
     "CLIP": 1,
 }
 
-train_iterator, valid_iterator, test_iterator = BucketIterator.splits(
-    (train_data, valid_data, test_data),
-    sort_key=lambda x: len(x.source),
-    sort_within_batch=False,
-    batch_size=CONFIG["BATCH_SIZE"],
-    device=device)
+(SRC, TRG), train_data, valid_data, test_data = preprocess.main()
 
-SRC.build_vocab(train_data, min_freq=2)
-TRG.build_vocab(train_data, min_freq=2)
+train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data),
+                                                                      batch_size=CONFIG["BATCH_SIZE"], device=device)
+
 
 INPUT_DIM = len(SRC.vocab)
 OUTPUT_DIM = len(TRG.vocab)
@@ -132,31 +108,30 @@ if not os.path.exists(saved_model_path):
 best_valid_loss = float('inf')
 saved_epoch = 0
 
-model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, device).to(device)
+_model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, device).to(device)
 
+_model.apply(initialize_weights)
 
-model.apply(initialize_weights)
+_optimizer = SchedulerOptim(torch.optim.Adam(_model.parameters(), lr=CONFIG['LEARNING_RATE'], betas=(0.9, 0.98),
+                                             weight_decay=0.0001), 1, CONFIG['HID_DIM'], 4000, 5e-4, saved_epoch)
 
-optimizer = SchedulerOptim(torch.optim.Adam(model.parameters(), lr=CONFIG['LEARNING_RATE'], betas=(0.9, 0.98),
-                                            weight_decay=0.0001), 1, CONFIG['HID_DIM'], 4000, 5e-4, saved_epoch)
+_criterion = nn.CrossEntropyLoss(ignore_index=TRC_PAD_IDX, label_smoothing=0.1)
 
-criterion = nn.CrossEntropyLoss(ignore_index=TRC_PAD_IDX, label_smoothing=0.1)
-
-wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=True)
-wandb.watch(model, log='all')
+wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=False)
+wandb.watch(_model, log='all')
 
 for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
     logs = dict()
 
-    train_loss = train(model=model, iterator=train_iterator, optimizer=optimizer, criterion=criterion, clip=CONFIG['CLIP'])
-    valid_loss = evaluate(model=model, iterator=valid_iterator, criterion=criterion)
-    train_lr = optimizer.optimizer.param_groups[0]['lr']
+    train_loss = train(model=_model, iterator=train_iterator, optimizer=_optimizer, criterion=_criterion, clip=CONFIG['CLIP'])
+    valid_loss = evaluate(model=_model, iterator=valid_iterator, criterion=_criterion)
+    train_lr = _optimizer.optimizer.param_groups[0]['lr']
     logs['train_loss'] = train_loss
     logs['valid_loss'] = valid_loss
     logs['train_lr'] = train_lr
 
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
-        torch.save(model.state_dict(), f'{saved_model_path}/model.pt')
+        torch.save(_model.state_dict(), f'{saved_model_path}/model.pt')
 
     wandb.log(logs, step=epoch)
