@@ -25,7 +25,7 @@ def train(model, iterator, optimizer, debugging=False):
     epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     for i, batch in enumerate(iterator):
         if debugging and i == 2:
-            return
+            break
 
         src = batch.src
         trg = batch.trg
@@ -49,7 +49,10 @@ def train(model, iterator, optimizer, debugging=False):
         epoch_word_total += n_word
         epoch_n_word_correct += n_correct
 
-    return epoch_loss / len(iterator), epoch_loss/epoch_word_total, epoch_n_word_correct/epoch_word_total
+    loss_per_word = epoch_loss/epoch_word_total
+    acc = epoch_n_word_correct/epoch_word_total
+
+    return epoch_loss / len(iterator), loss_per_word, acc
 
 
 def evaluate(model, iterator, debugging=False):
@@ -58,7 +61,7 @@ def evaluate(model, iterator, debugging=False):
     with torch.no_grad():
         for i, batch in enumerate(iterator):
             if debugging and i == 2:
-                return
+                break
 
             src = batch.src
             trg = batch.trg
