@@ -41,8 +41,6 @@ def train(model, iterator, optimizer, debugging=False):
 
         loss.backward()
 
-        # torch.nn.utils.clip_grad_norm(model.parameters(), clip)
-
         optimizer.step()
 
         epoch_loss += loss.item()
@@ -98,7 +96,7 @@ CONFIG = {
     "CLIP": 1
 }
 
-(SRC, TRG), train_data, valid_data, test_data = preprocess.main(use_bpe=False)
+(SRC, TRG), train_data, valid_data, test_data = preprocess.main(use_bpe=True)
 
 train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data),
                                                                       sort_key=lambda x: len(x.src),
@@ -132,8 +130,8 @@ _optimizer = SchedulerOptim(torch.optim.Adam(_model.parameters(), lr=CONFIG['LEA
 
 # _criterion = nn.CrossEntropyLoss(ignore_index=TRC_PAD_IDX, label_smoothing=0.1)
 
-# wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=False)
-# wandb.watch(_model, log='all')
+wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=False)
+wandb.watch(_model, log='all')
 
 for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
     logs = dict()
@@ -141,8 +139,8 @@ for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
     train_lr = _optimizer.optimizer.param_groups[0]['lr']
     logs['train_lr'] = train_lr
 
-    train_loss, train_loss_per_word, train_acc = train(model=_model, iterator=train_iterator, optimizer=_optimizer, debugging=True)
-    valid_loss, valid_loss_per_word, val_acc = evaluate(model=_model, iterator=valid_iterator, debugging=True)
+    train_loss, train_loss_per_word, train_acc = train(model=_model, iterator=train_iterator, optimizer=_optimizer)
+    valid_loss, valid_loss_per_word, val_acc = evaluate(model=_model, iterator=valid_iterator)
 
     logs['train_loss'] = train_loss
     logs['train_loss_per_word'] = train_loss_per_word
@@ -150,9 +148,9 @@ for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
     logs['valid_loss'] = valid_loss
     logs['valid_loss_per_word'] = valid_loss_per_word
     logs['val_acc'] = val_acc
-    print(logs)
+
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
         torch.save(_model.state_dict(), f'{saved_model_path}/model.pt')
 
-    # wandb.log(logs, step=epoch)
+    wandb.log(logs, step=epoch)
