@@ -7,6 +7,7 @@ import os
 
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 from transformer_pytorch.optim import SchedulerOptim
+from transformer_pytorch.loss import cal_performance
 import preprocess
 
 
@@ -19,10 +20,13 @@ def initialize_weights(m):
         nn.init.xavier_uniform_(m.weight.data)
 
 
-def train(model, iterator, optimizer, criterion, clip):
+def train(model, iterator, optimizer, debugging=False):
     model.train()
-    epoch_loss = 0
+    epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     for i, batch in enumerate(iterator):
+        if debugging and i == 2:
+            return
+
         src = batch.src
         trg = batch.trg
 
@@ -33,24 +37,29 @@ def train(model, iterator, optimizer, criterion, clip):
         output = output.contiguous().view(-1, output_dim)
         trg = trg[:, 1:].contiguous().view(-1)
 
-        loss = criterion(output, trg)
+        loss, n_correct, n_word = cal_performance(output, trg, TRC_PAD_IDX, True, 0.1)
 
         loss.backward()
 
-        torch.nn.utils.clip_grad_norm(model.parameters(), clip)
+        # torch.nn.utils.clip_grad_norm(model.parameters(), clip)
 
         optimizer.step()
 
         epoch_loss += loss.item()
+        epoch_word_total += n_word
+        epoch_n_word_correct += n_correct
 
-    return epoch_loss / len(iterator)
+    return epoch_loss / len(iterator), epoch_loss/epoch_word_total, epoch_n_word_correct/epoch_word_total
 
 
-def evaluate(model, iterator, criterion):
+def evaluate(model, iterator, debugging=False):
     model.eval()
-    epoch_loss = 0
+    epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     with torch.no_grad():
         for i, batch in enumerate(iterator):
+            if debugging and i == 2:
+                return
+
             src = batch.src
             trg = batch.trg
 
@@ -60,10 +69,12 @@ def evaluate(model, iterator, criterion):
             output = output.contiguous().view(-1, output_dim)
             trg = trg[:, 1:].contiguous().view(-1)
 
-            loss = criterion(output, trg)
+            loss, n_correct, n_word = cal_performance(output, trg, TRC_PAD_IDX, False, 0.1)
             epoch_loss += loss.item()
+            epoch_word_total += n_word
+            epoch_n_word_correct += n_correct
 
-    return epoch_loss / len(iterator)
+    return epoch_loss / len(iterator), epoch_loss/epoch_word_total, epoch_n_word_correct/epoch_word_total
 
 
 device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
@@ -116,23 +127,29 @@ _model.apply(initialize_weights)
 _optimizer = SchedulerOptim(torch.optim.Adam(_model.parameters(), lr=CONFIG['LEARNING_RATE'], betas=(0.9, 0.98),
                                              weight_decay=0.0001), 1, CONFIG['HID_DIM'], 4000, 5e-4, saved_epoch)
 
-_criterion = nn.CrossEntropyLoss(ignore_index=TRC_PAD_IDX, label_smoothing=0.1)
+# _criterion = nn.CrossEntropyLoss(ignore_index=TRC_PAD_IDX, label_smoothing=0.1)
 
-wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=False)
-wandb.watch(_model, log='all')
+# wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=False)
+# wandb.watch(_model, log='all')
 
 for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
     logs = dict()
 
-    train_loss = train(model=_model, iterator=train_iterator, optimizer=_optimizer, criterion=_criterion, clip=CONFIG['CLIP'])
-    valid_loss = evaluate(model=_model, iterator=valid_iterator, criterion=_criterion)
     train_lr = _optimizer.optimizer.param_groups[0]['lr']
-    logs['train_loss'] = train_loss
-    logs['valid_loss'] = valid_loss
     logs['train_lr'] = train_lr
 
+    train_loss, train_loss_per_word, train_acc = train(model=_model, iterator=train_iterator, optimizer=_optimizer, debugging=True)
+    valid_loss, valid_loss_per_word, val_acc = evaluate(model=_model, iterator=valid_iterator, debugging=True)
+
+    logs['train_loss'] = train_loss
+    logs['train_loss_per_word'] = train_loss_per_word
+    logs['train_acc'] = train_acc
+    logs['valid_loss'] = valid_loss
+    logs['valid_loss_per_word'] = valid_loss_per_word
+    logs['val_acc'] = val_acc
+    print(logs)
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
         torch.save(_model.state_dict(), f'{saved_model_path}/model.pt')
 
-    wandb.log(logs, step=epoch)
+    # wandb.log(logs, step=epoch)

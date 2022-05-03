@@ -10,8 +10,8 @@ class SchedulerOptim:
         self.max_lr = max_lr
 
     def step(self):
-        self.update_learning_rate()
         self.optimizer.step()
+        self.update_learning_rate()
 
     def zero_grad(self):
         self.optimizer.zero_grad()
