@@ -114,23 +114,30 @@ dec = Decoder(OUTPUT_DIM, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_H
 SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
 TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
 
-saved_model_path = './checkpoints/model_de_en/'
-if not os.path.exists(saved_model_path):
-    os.makedirs(saved_model_path)
-
-best_valid_loss = float('inf')
-saved_epoch = 0
 
 _model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, device).to(device)
 
-_model.apply(initialize_weights)
+model_name = 'model.pt'
+saved_model_dir = './checkpoints/model_de_en/'
+saved_model_path = saved_model_dir+model_name
+best_valid_loss = float('inf')
+saved_epoch = 0
+
+if not os.path.exists(saved_model_dir):
+    os.makedirs(saved_model_dir)
+    if os.path.exists(saved_model_path):
+        last_checkpoint = torch.load(saved_model_path, map_location=torch.device(device))
+        best_valid_loss = last_checkpoint['best_valid_loss']
+        saved_epoch = last_checkpoint['epoch']
+        _model.load_state_dict(last_checkpoint['state_dict'])
+        CONFIG['LEARNING_RATE'] = last_checkpoint['lr']
+    else:
+        _model.apply(initialize_weights)
 
 _optimizer = SchedulerOptim(torch.optim.Adam(_model.parameters(), lr=CONFIG['LEARNING_RATE'], betas=(0.9, 0.98),
                                              weight_decay=0.0001), 1, CONFIG['HID_DIM'], 4000, 5e-4, saved_epoch)
 
-# _criterion = nn.CrossEntropyLoss(ignore_index=TRC_PAD_IDX, label_smoothing=0.1)
-
-wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=False)
+wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=True)
 wandb.watch(_model, log='all')
 
 for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
@@ -151,6 +158,12 @@ for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
 
     if valid_loss < best_valid_loss:
         best_valid_loss = valid_loss
-        torch.save(_model.state_dict(), f'{saved_model_path}/model.pt')
+        checkpoint = {
+            'epoch': epoch+1,
+            'state_dict': _model.state_dict(),
+            'best_valid_loss': best_valid_loss,
+            'lr': train_lr
+        }
+        torch.save(checkpoint, saved_model_path)
 
     wandb.log(logs, step=epoch)
