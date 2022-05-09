@@ -128,10 +128,10 @@ if not os.path.exists(saved_model_dir):
     if os.path.exists(saved_model_path):
         print(f"Load saved model {'.'*10}")
         last_checkpoint = torch.load(saved_model_path, map_location=torch.device(device))
-        best_valid_loss = 4139
-        saved_epoch = 132
+        best_valid_loss = last_checkpoint['best_valid_loss']
+        saved_epoch = last_checkpoint['epoch']
         _model.load_state_dict(last_checkpoint['state_dict'])
-        CONFIG['LEARNING_RATE'] = 0.00003873
+        CONFIG['LEARNING_RATE'] = last_checkpoint['lr']
     else:
         _model.apply(initialize_weights)
 
