@@ -1,3 +1,5 @@
+import argparse
+
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
@@ -82,7 +84,7 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len=50):
             continue
         pred_trg, _ = translate_sentence(src, src_field, trg_field, model, device, max_len)
 
-        print(f"\ntrg: {trg}\npred:{pred_trg}")
+        # print(f"\ntrg: {trg}\npred:{pred_trg}")
 
         pred_trg = pred_trg[:-1]
         lst_pred_trg.append(pred_trg)
@@ -92,37 +94,49 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len=50):
     return bleu_score(lst_pred_trg, lst_trg)
 
 
-CONFIG = {
-    "LEARNING_RATE": 1e-7,
-    "BATCH_SIZE": 32,
-    "HID_DIM": 512,
-    "ENC_LAYERS": 6,
-    "DEC_LAYERS": 6,
-    "ENC_HEADS": 4,
-    "DEC_HEADS": 4,
-    "ENC_PF_DIM": 1024,
-    "DEC_PF_DIM": 1024,
-    "ENC_DROPOUT": 0.2,
-    "DEC_DROPOUT": 0.2,
-    "N_EPOCHS": 1000000,
-    "CLIP": 1
-}
-saved_model_path = './checkpoints/model_de_en/model.pt'
+if __name__ == "__main__":
 
-_device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-(SRC, TRG), _, _, test_data = preprocess.main(use_bpe=True)
+    parser = argparse.ArgumentParser(description="Mutil domain machine translation evaluation")
+    parser.add_argument("--data_dir", type=str)
+    parser.add_argument("--test_data_dir", type=str)
+    parser.add_argument("--model_path", type=str)
 
-INPUT_DIM = len(SRC.vocab)
-OUTPUT_DIM = len(TRG.vocab)
+    args = parser.parse_args()
 
-enc = Encoder(INPUT_DIM, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'],
-              CONFIG['ENC_DROPOUT'], _device)
-dec = Decoder(OUTPUT_DIM, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'], CONFIG['DEC_PF_DIM'],
-              CONFIG['DEC_DROPOUT'], _device)
-SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
-TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
-_model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, _device).to(_device)
-checkpoint = torch.load(saved_model_path, map_location=torch.device(_device))
-_model.load_state_dict(checkpoint['state_dict'])
-bleu_score = calculate_bleu(test_data, SRC, TRG, _model, _device)
-print(f"\n\n{'-'*10}BLEU_SCORE: {bleu_score:.2f}{'-'*10}")
+    data_dir = args.data_dir
+    test_data_dir = args.test_data_dir
+    saved_model_path = args.model_path
+
+    CONFIG = {
+        "LEARNING_RATE": 1e-7,
+        "BATCH_SIZE": 32,
+        "HID_DIM": 512,
+        "ENC_LAYERS": 6,
+        "DEC_LAYERS": 6,
+        "ENC_HEADS": 4,
+        "DEC_HEADS": 4,
+        "ENC_PF_DIM": 1024,
+        "DEC_PF_DIM": 1024,
+        "ENC_DROPOUT": 0.2,
+        "DEC_DROPOUT": 0.2,
+        "N_EPOCHS": 1000000,
+        "CLIP": 1
+    }
+
+    _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    (SRC, TRG), _, _, test_data = preprocess.main(data_dir, test_data_dir, 100, use_bpe=True)
+
+    INPUT_DIM = len(SRC.vocab)
+    OUTPUT_DIM = len(TRG.vocab)
+
+    enc = Encoder(INPUT_DIM, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'],
+                  CONFIG['ENC_DROPOUT'], _device)
+    dec = Decoder(OUTPUT_DIM, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'], CONFIG['DEC_PF_DIM'],
+                  CONFIG['DEC_DROPOUT'], _device)
+    SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
+    TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
+    _model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, _device).to(_device)
+    checkpoint = torch.load(saved_model_path, map_location=torch.device(_device))
+    _model.load_state_dict(checkpoint['state_dict'])
+    bleu_score = calculate_bleu(test_data, SRC, TRG, _model, _device)
+    print(f"\n\n{'-'*10}BLEU_SCORE: {bleu_score:.2f}{'-'*10}")

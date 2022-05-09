@@ -1,6 +1,7 @@
 import os
 import sys
 import codecs
+import argparse
 from mosestokenizer import *
 from torchtext.legacy.data import Field, TabularDataset
 from torchtext.legacy.datasets import TranslationDataset
@@ -9,8 +10,6 @@ from apply_bpe import BPE
 
 tokenize_src = MosesTokenizer('en')
 tokenize_trg = MosesTokenizer("de")
-MAX_LEN = 100
-data_dir = "./datasets/de-en/mixed"
 
 
 def encode_file(bpe, in_file, out_file):
@@ -27,17 +26,17 @@ def encode_files(bpe, src_in_file, trg_in_file, data_dir, prefix):
     src_out_file = os.path.join(data_dir, f"{prefix}.src")
     trg_out_file = os.path.join(data_dir, f"{prefix}.trg")
 
-    if os.path.isfile(src_out_file) and os.path.isfile(trg_out_file):
-        sys.stderr.write(f"Encoded files found, skip the encoding process ...\n")
+    # if os.path.isfile(src_out_file) and os.path.isfile(trg_out_file):
+    #     sys.stderr.write(f"Encoded files found, skip the encoding process ...\n")
 
     encode_file(bpe, src_in_file, src_out_file)
     encode_file(bpe, trg_in_file, trg_out_file)
     return src_out_file, trg_out_file
 
 
-def main(use_bpe=False):
+def main(data_dir, test_data_dir, max_length, use_bpe=False):
     if use_bpe:
-        return build_bpe_data()
+        return build_bpe_data(data_dir, test_data_dir, max_length)
     else:
         SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
                     batch_first=True)
@@ -55,15 +54,15 @@ def main(use_bpe=False):
         return (SRC, TRG), train_data, valid_data, test_data
 
 
-def build_bpe_data():
+def build_bpe_data(data_dir, test_data_dir, max_length):
     # Build up the code from training files if not exist
     codes = "./datasets/de-en/mixed/codes_bpe.txt"
     train_src_path = f"{data_dir}/train.en"
     train_trg_path = f"{data_dir}/train.de"
     val_src_path = f"{data_dir}/valid.en"
     val_trg_path = f"{data_dir}/valid.de"
-    test_src_path = f"{data_dir}/test.en"
-    test_trg_path = f"{data_dir}/test.de"
+    test_src_path = f"{test_data_dir}/test.en"
+    test_trg_path = f"{test_data_dir}/test.de"
     enc_train_files_prefix = 'bpe-train'
     enc_val_files_prefix = 'bpe-val'
     enc_test_files_prefix = 'bpe-test'
@@ -85,14 +84,14 @@ def build_bpe_data():
     sys.stderr.write(f"Done.\n")
 
     SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>',
-                fix_length=MAX_LEN, lower=True, batch_first=True)
+                fix_length=max_length, lower=True, batch_first=True)
     TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>',
-                fix_length=MAX_LEN, lower=True, batch_first=True)
+                fix_length=max_length, lower=True, batch_first=True)
 
     fields = (SRC, TRG)
 
     def filter_examples_with_length(x):
-        return len(vars(x)['src']) <= MAX_LEN and len(vars(x)['trg']) <= MAX_LEN
+        return len(vars(x)['src']) <= max_length and len(vars(x)['trg']) <= max_length
 
     train = TranslationDataset(
         fields=fields,
@@ -116,7 +115,3 @@ def build_bpe_data():
     TRG.build_vocab(train, min_freq=2)
 
     return fields, train, val, test
-
-
-if __name__ == '__main__':
-    main()
