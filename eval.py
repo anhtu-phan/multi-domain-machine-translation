@@ -77,18 +77,18 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len=50):
         src = vars(data[i])['src']
         trg = vars(data[i])['trg']
         if len(src) > 98:
-            print(f"Skip long sentence {'-'*10}{'>'*10}")
+            print(f"\nSkip long sentence {'-'*10}{'>'*10}")
             nb_skip += 1
             continue
         pred_trg, _ = translate_sentence(src, src_field, trg_field, model, device, max_len)
 
-        print(f"trg: {trg}\npred:{pred_trg}\n")
+        print(f"\ntrg: {trg}\npred:{pred_trg}")
 
         pred_trg = pred_trg[:-1]
         lst_pred_trg.append(pred_trg)
         lst_trg.append([trg])
 
-    print(f"{'-' * 10}nb_skip = {nb_skip}{'-' * 10}")
+    print(f"\n{'-' * 10}nb_skip = {nb_skip}{'-' * 10}")
     return bleu_score(lst_pred_trg, lst_trg)
 
 
@@ -122,6 +122,7 @@ dec = Decoder(OUTPUT_DIM, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_H
 SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
 TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
 _model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, _device).to(_device)
-_model.load_state_dict(torch.load(saved_model_path, map_location=torch.device(_device)))
+checkpoint = torch.load(saved_model_path, map_location=torch.device(_device))
+_model.load_state_dict(checkpoint['state_dict'])
 bleu_score = calculate_bleu(test_data, SRC, TRG, _model, _device)
-print(f"{'-'*10}BLEU_SCORE: {bleu_score:.2f}{'-'*10}")
+print(f"\n\n{'-'*10}BLEU_SCORE: {bleu_score:.2f}{'-'*10}")

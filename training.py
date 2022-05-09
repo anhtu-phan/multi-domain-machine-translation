@@ -82,7 +82,7 @@ device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
 CONFIG = {
     "LEARNING_RATE": 1e-7,
-    "BATCH_SIZE": 32,
+    "BATCH_SIZE": 64,
     "HID_DIM": 512,
     "ENC_LAYERS": 6,
     "DEC_LAYERS": 6,
@@ -126,11 +126,12 @@ saved_epoch = 0
 if not os.path.exists(saved_model_dir):
     os.makedirs(saved_model_dir)
     if os.path.exists(saved_model_path):
+        print(f"Load saved model {'.'*10}")
         last_checkpoint = torch.load(saved_model_path, map_location=torch.device(device))
-        best_valid_loss = last_checkpoint['best_valid_loss']
-        saved_epoch = last_checkpoint['epoch']
+        best_valid_loss = 4139
+        saved_epoch = 132
         _model.load_state_dict(last_checkpoint['state_dict'])
-        CONFIG['LEARNING_RATE'] = last_checkpoint['lr']
+        CONFIG['LEARNING_RATE'] = 0.00003873
     else:
         _model.apply(initialize_weights)
 
