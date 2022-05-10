@@ -5,12 +5,16 @@ import wandb
 from tqdm import tqdm
 import os
 import argparse
-
+import pandas as pd
+from mosestokenizer import *
+from torchtext.legacy.datasets import TranslationDataset
+from torchtext.legacy.data import Field, TabularDataset
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 from transformer_pytorch.domain_mixing_transformer import Encoder as DomainEncoder, Decoder as DomainDecoder, Seq2Seq as DomainSeq2Seq
 from transformer_pytorch.optim import SchedulerOptim
 from transformer_pytorch.loss import cal_performance
 import preprocess
+import build_dataset
 
 
 def count_parameters(model):
@@ -80,10 +84,81 @@ def evaluate(model, iterator, TRC_PAD_IDX, debugging=False):
     return epoch_loss / len(iterator), epoch_loss/epoch_word_total, epoch_n_word_correct/epoch_word_total
 
 
+def read_data(SRC, TRG, data_folder, test_data_folder, use_bpe=False, max_length=100):
+    train_data_path, val_data_path, test_data_path = preprocess.build_bpe_data(data_folder, test_data_folder)
+
+    if not use_bpe:
+        fields = [('src', SRC), ('trg', TRG)]
+
+        train_data, valid_data, test_data = TabularDataset.splits(path=data_dir, train='train.tsv',
+                                                                  test='test.tsv', validation='valid.tsv', format='tsv',
+                                                                  fields=fields, skip_header=True)
+        return (SRC, TRG), train_data, valid_data, test_data
+
+    fields = (SRC, TRG)
+
+    def filter_examples_with_length(x):
+        return len(vars(x)['src']) <= max_length and len(vars(x)['trg']) <= max_length
+
+    train = TranslationDataset(
+        fields=fields,
+        path=train_data_path,
+        exts=('.src', '.trg'),
+        filter_pred=filter_examples_with_length)
+
+    val = TranslationDataset(
+        fields=fields,
+        path=val_data_path,
+        exts=('.src', '.trg'),
+        filter_pred=filter_examples_with_length)
+
+    test = TranslationDataset(
+        fields=fields,
+        path=test_data_path,
+        exts=('.src', '.trg'),
+        filter_pred=filter_examples_with_length)
+
+    return train, val, test
+
+
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    (SRC, TRG), train_data, valid_data, test_data = preprocess.main(data_dir, test_data_dir, 100, use_bpe=True)
+    tokenize_src = MosesTokenizer('en')
+    tokenize_trg = MosesTokenizer("de")
+    SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
+    TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
+
+    if len(data_dir) > 1:
+        DOMAIN = Field(is_target=True)
+        for i, d in enumerate(data_dir):
+            train_type, valid_type, test_type = preprocess.build_bpe_data(d, d)
+            if i == 0:
+                train_data = build_dataset.build_data(d, train_type, 'src', 'trg', i)
+                valid_data = build_dataset.build_data(d, valid_type, 'src', 'trg', i)
+                test_data = build_dataset.build_data(d, test_type, 'src', 'trg', i)
+            else:
+                tr = build_dataset.build_data(d, train_type, 'src', 'trg', i)
+                v = build_dataset.build_data(d, valid_type, 'src', 'trg', i)
+                te = build_dataset.build_data(d, test_type, 'src', 'trg', i)
+                train_data = pd.concat([train_data, tr])
+                valid_data = pd.concat([valid_data, v])
+                test_data = pd.concat([test_data, te])
+        train_data.to_csv(f"{data_dir[0]}/train_combined.tsv", sep="\t", index=False)
+        valid_data.to_csv(f"{data_dir[0]}/valid_combined.tsv", sep="\t", index=False)
+        test_data.to_csv(f"{data_dir[0]}/test_combined.tsv", sep="\t", index=False)
+
+        fields = [('src', SRC), ('trg', TRG), ('domain', DOMAIN)]
+
+        train_data, valid_data, test_data = TabularDataset.splits(path=data_dir[0], train='train_combined.tsv',
+                                                                  test='test_combined.tsv', validation='valid_combined.tsv', format='tsv',
+                                                                  fields=fields, skip_header=True)
+    else:
+        train_data, valid_data, test_data = read_data(SRC, TRG, data_folder=data_dir, test_data_folder=test_data_dir,
+                                                      use_bpe=True, max_length=100)
+
+    SRC.build_vocab(train_data, min_freq=2)
+    TRG.build_vocab(train_data, min_freq=2)
 
     train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data),
                                                                           sort_key=lambda x: len(x.src),
@@ -159,7 +234,7 @@ def main():
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Mutil domain machine translation evaluation")
-    parser.add_argument("--data_dir", type=str)
+    parser.add_argument("--data_dir", nargs='+', default=[])
     parser.add_argument("--test_data_dir", type=str)
 
     args = parser.parse_args()

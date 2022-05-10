@@ -1,12 +1,9 @@
 import os
 import sys
 import codecs
-import argparse
-from mosestokenizer import *
-from torchtext.legacy.data import Field, TabularDataset
-from torchtext.legacy.datasets import TranslationDataset
 from learn_bpe import learn_bpe
 from apply_bpe import BPE
+from mosestokenizer import *
 
 tokenize_src = MosesTokenizer('en')
 tokenize_trg = MosesTokenizer("de")
@@ -34,29 +31,9 @@ def encode_files(bpe, src_in_file, trg_in_file, data_dir, prefix):
     return src_out_file, trg_out_file
 
 
-def main(data_dir, test_data_dir, max_length, use_bpe=False):
-    if use_bpe:
-        return build_bpe_data(data_dir, test_data_dir, max_length)
-    else:
-        SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
-                    batch_first=True)
-        TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
-                    batch_first=True)
-
-        fields = [('src', SRC), ('trg', TRG)]
-
-        train_data, valid_data, test_data = TabularDataset.splits(path=data_dir, train='train.tsv',
-                                                                  test='test.tsv', validation='valid.tsv', format='tsv',
-                                                                  fields=fields, skip_header=True)
-        SRC.build_vocab(train_data, min_freq=2)
-        TRG.build_vocab(train_data, min_freq=2)
-
-        return (SRC, TRG), train_data, valid_data, test_data
-
-
-def build_bpe_data(data_dir, test_data_dir, max_length):
+def build_bpe_data(data_dir, test_data_dir):
     # Build up the code from training files if not exist
-    codes = "./datasets/de-en/mixed/codes_bpe.txt"
+    codes = f"{data_dir}/codes_bpe.txt"
     train_src_path = f"{data_dir}/train.en"
     train_trg_path = f"{data_dir}/train.de"
     val_src_path = f"{data_dir}/valid.en"
@@ -83,35 +60,4 @@ def build_bpe_data(data_dir, test_data_dir, max_length):
     encode_files(bpe, test_src_path, test_trg_path, data_dir, enc_test_files_prefix)
     sys.stderr.write(f"Done.\n")
 
-    SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>',
-                fix_length=max_length, lower=True, batch_first=True)
-    TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>',
-                fix_length=max_length, lower=True, batch_first=True)
-
-    fields = (SRC, TRG)
-
-    def filter_examples_with_length(x):
-        return len(vars(x)['src']) <= max_length and len(vars(x)['trg']) <= max_length
-
-    train = TranslationDataset(
-        fields=fields,
-        path=os.path.join(data_dir, enc_train_files_prefix),
-        exts=('.src', '.trg'),
-        filter_pred=filter_examples_with_length)
-
-    val = TranslationDataset(
-        fields=fields,
-        path=os.path.join(data_dir, enc_val_files_prefix),
-        exts=('.src', '.trg'),
-        filter_pred=filter_examples_with_length)
-
-    test = TranslationDataset(
-        fields=fields,
-        path=os.path.join(data_dir, enc_test_files_prefix),
-        exts=('.src', '.trg'),
-        filter_pred=filter_examples_with_length)
-
-    SRC.build_vocab(train, min_freq=2)
-    TRG.build_vocab(train, min_freq=2)
-
-    return fields, train, val, test
+    return os.path.join(data_dir, enc_train_files_prefix), os.path.join(data_dir, enc_val_files_prefix), os.path.join(data_dir, enc_test_files_prefix),

@@ -1,9 +1,7 @@
 import pandas as pd
 
-dataset_path = './datasets/de-en/mixed'
 
-
-def build_data(data_type, src_ext, trg_ext):
+def build_data(dataset_path, data_type, src_ext, trg_ext, domain=None):
     src_data = []
     trg_data = []
 
@@ -14,12 +12,13 @@ def build_data(data_type, src_ext, trg_ext):
     with open(f"{dataset_path}/{data_type}.{trg_ext}", "rt", encoding="utf8") as f:
         for line in f:
             trg_data.append(line)
-
-    data = {"source": src_data, "target": trg_data}
+    if domain is not None:
+        data = {"src": src_data, "trg": trg_data, "domain": [domain]*len(src_data)}
+    else:
+        data = {"src": src_data, "trg": trg_data}
     df = pd.DataFrame(data)
     df.to_csv(f"{dataset_path}/{data_type}.tsv", sep="\t", index=False)
+    return df
 
 
-build_data("train", "en", "de")
-build_data("valid", "en", "de")
-build_data("test", "en", "de")
+build_data('./datasets/de-en/mixed', "train", "en", "de")
