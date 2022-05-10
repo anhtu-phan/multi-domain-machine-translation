@@ -39,10 +39,14 @@ class Encoder(nn.Module):
         # src = [batch_size, src_len, hid_dim]
         src = self.dropout((self.tok_embedding(src) * self.scale) + self.pos_embedding(pos))
 
-        for layer in self.layers:
-            src, domain = layer(src, src_mask)
+        for i, layer in enumerate(self.layers):
+            if i == 0:
+                src, domain = layer(src, src_mask)
+            else:
+                src, d = layer(src, src_mask)
+                domain += d
 
-        return src, domain
+        return src, domain/len(self.layers)
 
 
 class EncoderLayer(nn.Module):
@@ -60,43 +64,60 @@ class EncoderLayer(nn.Module):
         self.self_attn_layer_norm = nn.LayerNorm(hid_dim)
         self.ff_layer_norm = nn.LayerNorm(hid_dim)
         self.self_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, n_domain, domain_eps, device)
-        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout)
+        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout, n_domain, domain_eps)
 
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, src, src_mask):
         # src = [batch_size, src_len, hid_dim]
 
-        _src, _, domain = self.self_attention(src, src, src, src_mask)
+        _src, _, att_domain = self.self_attention(src, src, src, src_mask)
 
         src = self.self_attn_layer_norm(src + self.dropout(_src))
 
-        _src = self.position_wise_feedforward(src)
+        _src, ff_domain = self.position_wise_feedforward(src)
 
         src = self.ff_layer_norm(src + self.dropout(_src))
 
-        return src, domain
+        return src, (att_domain + ff_domain)/2
 
 
 class PositionWiseFeedforwardLayer(nn.Module):
     def __init__(self,
                  hid_dim,
                  pf_dim,
-                 dropout
+                 dropout,
+                 n_domain,
+                 domain_eps,
                  ):
         super().__init__()
-        self.fc_1 = nn.Linear(hid_dim, pf_dim)
-        self.fc_2 = nn.Linear(pf_dim, hid_dim)
+
+        self.n_domain = n_domain
+        self.domain_eps = domain_eps
+
+        self.fc_r = nn.Linear(hid_dim, n_domain)
+
+        self.fc_1 = [nn.Linear(hid_dim, pf_dim) for _ in range(n_domain)]
+        self.fc_2 = [nn.Linear(pf_dim, hid_dim) for _ in range(n_domain)]
 
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, x):
-        # x = [batch_size, seq_len, hid_dim]
-        x = self.dropout(torch.relu(self.fc_1(x)))
 
-        x = self.fc_2(x)
+        # d = [batch_size, seq_len, n_domain]
+        d = (1 - self.domain_eps) * torch.softmax(self.fc_r(x), dim=-1) + self.domain_eps / self.n_domain
 
-        return x
+        x_out = torch.zeros(x.shape)
+
+        for i_d in range(self.n_domain):
+            # x = [batch_size, seq_len, hid_dim]
+            x_i = self.dropout(torch.relu(self.fc_1[i_d](x)))
+            x_i = self.fc_2[i_d](x_i)
+            for i_x_b, b_x in enumerate(x_i):
+                for i_x, _ in enumerate(b_x):
+                    x_i[i_x_b, i_x, :] *= d[i_x_b, i_x, i_d]
+            x_out += x_i
+        return x_out, d
 
 
 class MultiHeadAttentionLayer(nn.Module):
@@ -148,18 +169,18 @@ class MultiHeadAttentionLayer(nn.Module):
             i_key = self.fc_k[i_d](key)
             i_value = self.fc_v[i_d](value)
 
-            for i_q_b, b_q in enumerate(q):
-                for i_q in enumerate(b_q):
+            for i_q_b, b_q in enumerate(i_query):
+                for i_q, _ in enumerate(b_q):
                     i_query[i_q_b, i_q, :] *= dq[i_q_b, i_q, i_d]
             q += i_query
 
-            for i_k_b, b_k in enumerate(k):
-                for i_k in enumerate(b_k):
+            for i_k_b, b_k in enumerate(i_key):
+                for i_k, _ in enumerate(b_k):
                     i_key[i_k_b, i_k, :] *= dk[i_k_b, i_k, i_d]
             k += i_key
 
-            for i_v_b, b_v in enumerate(v):
-                for i_v in enumerate(b_v):
+            for i_v_b, b_v in enumerate(i_value):
+                for i_v, _ in enumerate(b_v):
                     i_value[i_v_b, i_v, :] *= dv[i_v_b, i_v, i_d]
             v += i_value
 
@@ -234,13 +255,16 @@ class Decoder(nn.Module):
         trg = self.dropout((self.tok_embedding(trg) * self.scale) + self.pos_embedding(pos))
         # trg = [batch_size, trg_len, hid_dim]
 
-        for layer in self.layers:
-            trg, attention, domain = layer(trg, enc_src, trg_mask, src_mask)
-
+        for i, layer in enumerate(self.layers):
+            if i == 0:
+                trg, attention, domain = layer(trg, enc_src, trg_mask, src_mask)
+            else:
+                trg, attention, d = layer(trg, enc_src, trg_mask, src_mask)
+                domain += d
         output = self.fc_out(trg)
         # output = [batch_size, trg_len, output_dim]
 
-        return output, attention, domain
+        return output, attention, domain/len(self.layers)
 
 
 class DecoderLayer(nn.Module):
@@ -260,26 +284,26 @@ class DecoderLayer(nn.Module):
         self.ff_layer_norm = nn.LayerNorm(hid_dim)
         self.self_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, n_domain, domain_eps, device)
         self.encoder_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, n_domain, domain_eps, device)
-        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout)
+        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout, n_domain, domain_eps)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, trg, enc_src, trg_mask, src_mask):
         # trg = [batch_size, trg_len, hid_dim]
-        _trg, _, domain = self.self_attention(trg, trg, trg, trg_mask)
+        _trg, _, att_domain = self.self_attention(trg, trg, trg, trg_mask)
 
         trg = self.self_attn_layer_norm(trg + self.dropout(_trg))
         # trg = [batch_size, trg_len, hid_dim]
 
-        _trg, attention, domain = self.encoder_attention(trg, enc_src, enc_src, src_mask)
+        _trg, attention, enc_domain = self.encoder_attention(trg, enc_src, enc_src, src_mask)
 
         trg = self.enc_attn_layer_norm(trg + self.dropout(_trg))
 
-        _trg = self.position_wise_feedforward(trg)
+        _trg, ff_domain = self.position_wise_feedforward(trg)
 
         trg = self.ff_layer_norm(trg + self.dropout(_trg))
 
         # trg = [batch_size, trg_len, hid_dim]
-        return trg, attention, domain
+        return trg, attention, (att_domain + enc_domain + ff_domain)/3
 
 
 class Seq2Seq(nn.Module):
@@ -321,8 +345,8 @@ class Seq2Seq(nn.Module):
         src_mask = self.make_src_mask(src)
         trg_mask = self.make_trg_mask(trg)
 
-        enc_src = self.encoder(src, src_mask)
+        enc_src, enc_domain = self.encoder(src, src_mask)
 
-        output, attention = self.decoder(trg, enc_src, trg_mask, src_mask)
+        output, attention, dec_domain = self.decoder(trg, enc_src, trg_mask, src_mask)
 
-        return output, attention
+        return output, attention, (enc_domain+dec_domain)/2

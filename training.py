@@ -7,6 +7,7 @@ import os
 import argparse
 
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
+from transformer_pytorch.domain_mixing_transformer import Encoder as DomainEncoder, Decoder as DomainDecoder, Seq2Seq as DomainSeq2Seq
 from transformer_pytorch.optim import SchedulerOptim
 from transformer_pytorch.loss import cal_performance
 import preprocess
@@ -21,7 +22,7 @@ def initialize_weights(m):
         nn.init.xavier_uniform_(m.weight.data)
 
 
-def train(model, iterator, optimizer, debugging=False):
+def train(model, iterator, optimizer, TRC_PAD_IDX, debugging=False):
     model.train()
     epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     for i, batch in enumerate(iterator):
@@ -54,7 +55,7 @@ def train(model, iterator, optimizer, debugging=False):
     return epoch_loss / len(iterator), loss_per_word, acc
 
 
-def evaluate(model, iterator, debugging=False):
+def evaluate(model, iterator, TRC_PAD_IDX, debugging=False):
     model.eval()
     epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     with torch.no_grad():
@@ -133,8 +134,8 @@ def main():
         train_lr = _optimizer.optimizer.param_groups[0]['lr']
         logs['train_lr'] = train_lr
 
-        train_loss, train_loss_per_word, train_acc = train(model=_model, iterator=train_iterator, optimizer=_optimizer)
-        valid_loss, valid_loss_per_word, val_acc = evaluate(model=_model, iterator=valid_iterator)
+        train_loss, train_loss_per_word, train_acc = train(model=_model, iterator=train_iterator, optimizer=_optimizer, TRC_PAD_IDX=TRC_PAD_IDX)
+        valid_loss, valid_loss_per_word, val_acc = evaluate(model=_model, iterator=valid_iterator, TRC_PAD_IDX=TRC_PAD_IDX)
 
         logs['train_loss'] = train_loss
         logs['train_loss_per_word'] = train_loss_per_word
@@ -168,7 +169,7 @@ if __name__ == '__main__':
 
     CONFIG = {
         "LEARNING_RATE": 1e-7,
-        "BATCH_SIZE": 64,
+        "BATCH_SIZE": 32,
         "HID_DIM": 512,
         "ENC_LAYERS": 6,
         "DEC_LAYERS": 6,
