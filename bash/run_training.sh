@@ -9,5 +9,5 @@ else
   python -m spacy download en_core_web_sm
   python -m spacy download de_core_news_sm
 fi
-python /home/students/anhtu/multi-domain-machine-translation/training.py --data_dir ./datasets/de-en/mixed --test_data_dir ./datasets/de-en/news
+python /home/students/anhtu/multi-domain-machine-translation/training.py --data_dir ./datasets/de-en/news ./datasets/de-en/ted
 deactivate

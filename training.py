@@ -8,11 +8,11 @@ import argparse
 import pandas as pd
 from mosestokenizer import *
 from torchtext.legacy.datasets import TranslationDataset
-from torchtext.legacy.data import Field, TabularDataset
+from torchtext.legacy.data import LabelField, Field, TabularDataset
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 from transformer_pytorch.domain_mixing_transformer import Encoder as DomainEncoder, Decoder as DomainDecoder, Seq2Seq as DomainSeq2Seq
 from transformer_pytorch.optim import SchedulerOptim
-from transformer_pytorch.loss import cal_performance
+from transformer_pytorch.loss import cal_performance, cal_domain_loss
 import preprocess
 import build_dataset
 
@@ -26,24 +26,32 @@ def initialize_weights(m):
         nn.init.xavier_uniform_(m.weight.data)
 
 
-def train(model, iterator, optimizer, TRC_PAD_IDX, debugging=False):
+def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging=False):
     model.train()
-    epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
+    epoch_loss, epoch_loss_domain, epoch_word_total, epoch_n_word_correct = 0, 0, 0, 0
     for i, batch in enumerate(iterator):
         if debugging and i == 2:
             break
 
         src = batch.src
         trg = batch.trg
+        domain = batch.domain
 
         optimizer.zero_grad()
-        output, _ = model(src, trg[:, :-1])
+        if mutil_domain:
+            output, _, domain_prob = model(src, trg[:, :-1])
+        else:
+            output, _ = model(src, trg[:, :-1])
 
         output_dim = output.shape[-1]
         output = output.contiguous().view(-1, output_dim)
         trg = trg[:, 1:].contiguous().view(-1)
 
-        loss, n_correct, n_word = cal_performance(output, trg, TRC_PAD_IDX, True, 0.1)
+        loss, n_correct, n_word = cal_performance(output, trg, trg_pad_idx, True, 0.1)
+        if mutil_domain:
+            l_mix = cal_domain_loss(domain, domain_prob)
+            loss += l_mix
+            epoch_loss_domain += l_mix.item()
 
         loss.backward()
 
@@ -56,10 +64,10 @@ def train(model, iterator, optimizer, TRC_PAD_IDX, debugging=False):
     loss_per_word = epoch_loss/epoch_word_total
     acc = epoch_n_word_correct/epoch_word_total
 
-    return epoch_loss / len(iterator), loss_per_word, acc
+    return epoch_loss / len(iterator), loss_per_word, acc, epoch_loss_domain / len(iterator)
 
 
-def evaluate(model, iterator, TRC_PAD_IDX, debugging=False):
+def evaluate(model, iterator, trg_pad_idx, mutil_domain=False, debugging=False):
     model.eval()
     epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     with torch.no_grad():
@@ -69,14 +77,16 @@ def evaluate(model, iterator, TRC_PAD_IDX, debugging=False):
 
             src = batch.src
             trg = batch.trg
-
-            output, _ = model(src, trg[:, :-1])
+            if mutil_domain:
+                output, _, _ = model(src, trg[:, :-1])
+            else:
+                output, _ = model(src, trg[:, :-1])
             output_dim = output.shape[-1]
 
             output = output.contiguous().view(-1, output_dim)
             trg = trg[:, 1:].contiguous().view(-1)
 
-            loss, n_correct, n_word = cal_performance(output, trg, TRC_PAD_IDX, False, 0.1)
+            loss, n_correct, n_word = cal_performance(output, trg, trg_pad_idx, False, 0.1)
             epoch_loss += loss.item()
             epoch_word_total += n_word
             epoch_n_word_correct += n_correct
@@ -126,21 +136,21 @@ def main():
 
     tokenize_src = MosesTokenizer('en')
     tokenize_trg = MosesTokenizer("de")
-    SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
-    TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
+    src = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
+    trg = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True, batch_first=True)
 
     if len(data_dir) > 1:
-        DOMAIN = Field(is_target=True)
+        domain = LabelField()
         for i, d in enumerate(data_dir):
             train_type, valid_type, test_type = preprocess.build_bpe_data(d, d)
+            tr = build_dataset.build_data(train_type, 'src', 'trg', i)
+            v = build_dataset.build_data(valid_type, 'src', 'trg', i)
+            te = build_dataset.build_data(test_type, 'src', 'trg', i)
             if i == 0:
-                train_data = build_dataset.build_data(d, train_type, 'src', 'trg', i)
-                valid_data = build_dataset.build_data(d, valid_type, 'src', 'trg', i)
-                test_data = build_dataset.build_data(d, test_type, 'src', 'trg', i)
+                train_data = tr
+                valid_data = v
+                test_data = te
             else:
-                tr = build_dataset.build_data(d, train_type, 'src', 'trg', i)
-                v = build_dataset.build_data(d, valid_type, 'src', 'trg', i)
-                te = build_dataset.build_data(d, test_type, 'src', 'trg', i)
                 train_data = pd.concat([train_data, tr])
                 valid_data = pd.concat([valid_data, v])
                 test_data = pd.concat([test_data, te])
@@ -148,38 +158,51 @@ def main():
         valid_data.to_csv(f"{data_dir[0]}/valid_combined.tsv", sep="\t", index=False)
         test_data.to_csv(f"{data_dir[0]}/test_combined.tsv", sep="\t", index=False)
 
-        fields = [('src', SRC), ('trg', TRG), ('domain', DOMAIN)]
+        fields = [('src', src), ('trg', trg), ('domain', domain)]
 
         train_data, valid_data, test_data = TabularDataset.splits(path=data_dir[0], train='train_combined.tsv',
-                                                                  test='test_combined.tsv', validation='valid_combined.tsv', format='tsv',
+                                                                  test='test_combined.tsv',
+                                                                  validation='valid_combined.tsv',
+                                                                  format='tsv',
                                                                   fields=fields, skip_header=True)
+        domain.build_vocab(train_data)
     else:
-        train_data, valid_data, test_data = read_data(SRC, TRG, data_folder=data_dir, test_data_folder=test_data_dir,
+        train_data, valid_data, test_data = read_data(src, trg, data_folder=data_dir, test_data_folder=test_data_dir,
                                                       use_bpe=True, max_length=100)
 
-    SRC.build_vocab(train_data, min_freq=2)
-    TRG.build_vocab(train_data, min_freq=2)
+    src.build_vocab(train_data, min_freq=2)
+    trg.build_vocab(train_data, min_freq=2)
 
     train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data),
                                                                           sort_key=lambda x: len(x.src),
                                                                           sort_within_batch=False,
-                                                                          batch_size=CONFIG["BATCH_SIZE"], device=device)
+                                                                          batch_size=CONFIG["BATCH_SIZE"],
+                                                                          shuffle=True,
+                                                                          device=device)
 
-    INPUT_DIM = len(SRC.vocab)
-    OUTPUT_DIM = len(TRG.vocab)
+    input_dim = len(src.vocab)
+    output_dim = len(trg.vocab)
 
-    enc = Encoder(INPUT_DIM, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'],
-                  CONFIG['ENC_DROPOUT'], device)
-    dec = Decoder(OUTPUT_DIM, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'], CONFIG['DEC_PF_DIM'],
-                  CONFIG['DEC_DROPOUT'], device)
+    if len(data_dir) > 1:
+        enc = DomainEncoder(input_dim, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'],
+                            CONFIG['ENC_PF_DIM'], CONFIG['ENC_DROPOUT'], len(data_dir), CONFIG['DOMAIN_EPS'], device)
+        dec = DomainDecoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'],
+                            CONFIG['DEC_PF_DIM'], CONFIG['DEC_DROPOUT'], len(data_dir), CONFIG['DOMAIN_EPS'], device)
+    else:
+        enc = Encoder(input_dim, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'],
+                      CONFIG['ENC_DROPOUT'], device)
+        dec = Decoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'], CONFIG['DEC_PF_DIM'],
+                      CONFIG['DEC_DROPOUT'], device)
 
-    SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
-    TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
+    src_pad_idx = src.vocab.stoi[src.pad_token]
+    trg_pad_idx = trg.vocab.stoi[trg.pad_token]
 
-
-    _model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, device).to(device)
-
-    model_name = 'model.pt'
+    if len(data_dir) > 1:
+        _model = DomainSeq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
+    else:
+        _model = Seq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
+    print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}")
+    model_name = 'model_mutil.pt'
     saved_model_dir = './checkpoints/model_de_en/'
     saved_model_path = saved_model_dir+model_name
     best_valid_loss = float('inf')
@@ -194,13 +217,13 @@ def main():
         saved_epoch = last_checkpoint['epoch']
         _model.load_state_dict(last_checkpoint['state_dict'])
         CONFIG['LEARNING_RATE'] = last_checkpoint['lr']
-    else:
-        _model.apply(initialize_weights)
+    # else:
+    #     _model.apply(initialize_weights)
 
     _optimizer = SchedulerOptim(torch.optim.Adam(_model.parameters(), lr=CONFIG['LEARNING_RATE'], betas=(0.9, 0.98),
                                                  weight_decay=0.0001), 1, CONFIG['HID_DIM'], 4000, 5e-4, saved_epoch)
 
-    wandb.init(name="training-transformer-en2de", project="multi-domain-machine-translation", config=CONFIG, resume=True)
+    wandb.init(name="training-transformer-en2de-mutil", project="multi-domain-machine-translation", config=CONFIG, resume=True)
     wandb.watch(_model, log='all')
 
     for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
@@ -209,12 +232,15 @@ def main():
         train_lr = _optimizer.optimizer.param_groups[0]['lr']
         logs['train_lr'] = train_lr
 
-        train_loss, train_loss_per_word, train_acc = train(model=_model, iterator=train_iterator, optimizer=_optimizer, TRC_PAD_IDX=TRC_PAD_IDX)
-        valid_loss, valid_loss_per_word, val_acc = evaluate(model=_model, iterator=valid_iterator, TRC_PAD_IDX=TRC_PAD_IDX)
+        train_loss, train_loss_per_word, train_acc, train_domain_loss = train(model=_model, iterator=train_iterator, optimizer=_optimizer,
+                                                           trg_pad_idx=trg_pad_idx, mutil_domain=(len(data_dir) > 1),)
+        valid_loss, valid_loss_per_word, val_acc = evaluate(model=_model, iterator=valid_iterator,
+                                                            trg_pad_idx=trg_pad_idx, mutil_domain=(len(data_dir) > 1))
 
         logs['train_loss'] = train_loss
         logs['train_loss_per_word'] = train_loss_per_word
         logs['train_acc'] = train_acc
+        logs['train_domain_loss'] = train_domain_loss
         logs['valid_loss'] = valid_loss
         logs['valid_loss_per_word'] = valid_loss_per_word
         logs['val_acc'] = val_acc
@@ -255,6 +281,7 @@ if __name__ == '__main__':
         "ENC_DROPOUT": 0.2,
         "DEC_DROPOUT": 0.2,
         "N_EPOCHS": 1000000,
+        "DOMAIN_EPS": 0.1,
         "CLIP": 1
     }
     main()

@@ -20,7 +20,7 @@ def cal_loss(pred, gold, trg_pad_idx, smoothing=False, eps=0.1):
     if smoothing:
         n_class = pred.size(1)
         one_hot = torch.zeros_like(pred).scatter(1, gold.view(-1, 1), 1)
-        one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / (n_class-1)
+        one_hot = one_hot * (1 - eps) + (1 - one_hot) * eps / (n_class - 1)
         log_prob = F.log_softmax(pred, dim=1)
 
         non_pad_mask = gold.ne(trg_pad_idx)
@@ -30,3 +30,14 @@ def cal_loss(pred, gold, trg_pad_idx, smoothing=False, eps=0.1):
         loss = F.cross_entropy(pred, gold, ignore_index=trg_pad_idx, reduction='sum')
 
     return loss
+
+
+def cal_domain_loss(domain, domain_prob):
+    # domain [batch_size]
+    # domain_prob [batch_size, seq_len, domain]
+    l_mix = 0
+    for i_b in range(domain_prob.shape[0]):
+        for i_s in range(domain_prob.shape[1]):
+            l_mix += (-torch.log(domain_prob[i_b, i_s, domain[i_b]]))
+
+    return l_mix

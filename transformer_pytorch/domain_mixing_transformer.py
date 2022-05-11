@@ -113,8 +113,8 @@ class PositionWiseFeedforwardLayer(nn.Module):
             # x = [batch_size, seq_len, hid_dim]
             x_i = self.dropout(torch.relu(self.fc_1[i_d](x)))
             x_i = self.fc_2[i_d](x_i)
-            for i_x_b, b_x in enumerate(x_i):
-                for i_x, _ in enumerate(b_x):
+            for i_x_b in range(x_i.shape[0]):
+                for i_x in range(x_i.shape[1]):
                     x_i[i_x_b, i_x, :] *= d[i_x_b, i_x, i_d]
             x_out += x_i
         return x_out, d
@@ -162,25 +162,25 @@ class MultiHeadAttentionLayer(nn.Module):
         k = torch.zeros(key.shape)
         dv = (1 - self.domain_eps) * torch.softmax(self.fc_rv(value), dim=-1) + self.domain_eps / self.n_domain
         v = torch.zeros(value.shape)
-        d = (dq + dk + dv)/3
+        # d = (dq + dk + dv)/3
 
         for i_d in range(self.n_domain):
             i_query = self.fc_q[i_d](query)  # [batch_size, query_len, hid_dim]
             i_key = self.fc_k[i_d](key)
             i_value = self.fc_v[i_d](value)
 
-            for i_q_b, b_q in enumerate(i_query):
-                for i_q, _ in enumerate(b_q):
+            for i_q_b in range(i_query.shape[0]):
+                for i_q in range(i_query.shape[1]):
                     i_query[i_q_b, i_q, :] *= dq[i_q_b, i_q, i_d]
             q += i_query
 
-            for i_k_b, b_k in enumerate(i_key):
-                for i_k, _ in enumerate(b_k):
+            for i_k_b in range(i_key.shape[0]):
+                for i_k in range(i_key.shape[1]):
                     i_key[i_k_b, i_k, :] *= dk[i_k_b, i_k, i_d]
             k += i_key
 
-            for i_v_b, b_v in enumerate(i_value):
-                for i_v, _ in enumerate(b_v):
+            for i_v_b in range(i_value.shape[0]):
+                for i_v in range(i_value.shape[1]):
                     i_value[i_v_b, i_v, :] *= dv[i_v_b, i_v, i_d]
             v += i_value
 
@@ -214,7 +214,7 @@ class MultiHeadAttentionLayer(nn.Module):
 
         x = self.fc_o(x)
 
-        return x, attention, d
+        return x, attention, dq
 
 
 class Decoder(nn.Module):
@@ -349,4 +349,4 @@ class Seq2Seq(nn.Module):
 
         output, attention, dec_domain = self.decoder(trg, enc_src, trg_mask, src_mask)
 
-        return output, attention, (enc_domain+dec_domain)/2
+        return output, attention, dec_domain
