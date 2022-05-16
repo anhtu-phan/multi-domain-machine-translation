@@ -18,12 +18,12 @@ class Encoder(nn.Module):
         super().__init__()
         self.device = device
 
-        self.tok_embedding = nn.Embedding(input_dim, hid_dim)
-        self.pos_embedding = nn.Embedding(max_length, hid_dim)
+        self.tok_embedding = nn.Embedding(input_dim, hid_dim).to(device)
+        self.pos_embedding = nn.Embedding(max_length, hid_dim).to(device)
 
         self.layers = nn.ModuleList([EncoderLayer(hid_dim, n_heads, pf_dim, dropout, n_domain, domain_eps, device) for _ in range(n_layers)])
 
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout).to(device)
 
         self.scale = torch.sqrt(torch.FloatTensor([hid_dim])).to(device)
 
@@ -64,7 +64,7 @@ class EncoderLayer(nn.Module):
         self.self_attn_layer_norm = nn.LayerNorm(hid_dim)
         self.ff_layer_norm = nn.LayerNorm(hid_dim)
         self.self_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, n_domain, domain_eps, device)
-        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout, n_domain, domain_eps)
+        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout, n_domain, domain_eps, device)
 
         self.dropout = nn.Dropout(dropout)
 
@@ -89,34 +89,33 @@ class PositionWiseFeedforwardLayer(nn.Module):
                  dropout,
                  n_domain,
                  domain_eps,
+                 device,
                  ):
         super().__init__()
-
+        self.device = device
         self.n_domain = n_domain
         self.domain_eps = domain_eps
 
-        self.fc_r = nn.Linear(hid_dim, n_domain)
+        self.fc_r = nn.Linear(hid_dim, n_domain).to(device)
 
-        self.fc_1 = [nn.Linear(hid_dim, pf_dim) for _ in range(n_domain)]
-        self.fc_2 = [nn.Linear(pf_dim, hid_dim) for _ in range(n_domain)]
+        self.fc_1 = [nn.Linear(hid_dim, pf_dim).to(device) for _ in range(n_domain)]
+        self.fc_2 = [nn.Linear(pf_dim, hid_dim).to(device) for _ in range(n_domain)]
 
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout).to(device)
 
     def forward(self, x):
 
         # d = [batch_size, seq_len, n_domain]
         d = (1 - self.domain_eps) * torch.softmax(self.fc_r(x), dim=-1) + self.domain_eps / self.n_domain
 
-        x_out = torch.zeros(x.shape)
+        x_out = torch.zeros(x.shape).to(self.device)
 
         for i_d in range(self.n_domain):
-            # x = [batch_size, seq_len, hid_dim]
             x_i = self.dropout(torch.relu(self.fc_1[i_d](x)))
             x_i = self.fc_2[i_d](x_i)
-            for i_x_b in range(x_i.shape[0]):
-                for i_x in range(x_i.shape[1]):
-                    x_i[i_x_b, i_x, :] *= d[i_x_b, i_x, i_d]
-            x_out += x_i
+            # x = [batch_size, seq_len, hid_dim]
+            i_d = torch.repeat_interleave(d[:, :, i_d], self.hid_dim, dim=1).view(x_i.shape)
+            x_out += (x_i*i_d)
         return x_out, d
 
 
@@ -133,23 +132,24 @@ class MultiHeadAttentionLayer(nn.Module):
 
         assert hid_dim % n_heads == 0
 
+        self.device = device
         self.n_domain = n_domain
         self.domain_eps = domain_eps
-        self.fc_rq = nn.Linear(hid_dim, n_domain)
-        self.fc_rk = nn.Linear(hid_dim, n_domain)
-        self.fc_rv = nn.Linear(hid_dim, n_domain)
+        self.fc_rq = nn.Linear(hid_dim, n_domain).to(device)
+        self.fc_rk = nn.Linear(hid_dim, n_domain).to(device)
+        self.fc_rv = nn.Linear(hid_dim, n_domain).to(device)
 
         self.hid_dim = hid_dim
         self.n_heads = n_heads
         self.head_dim = hid_dim // n_heads
 
-        self.fc_q = [nn.Linear(hid_dim, hid_dim) for _ in range(n_domain)]
-        self.fc_k = [nn.Linear(hid_dim, hid_dim) for _ in range(n_domain)]
-        self.fc_v = [nn.Linear(hid_dim, hid_dim) for _ in range(n_domain)]
+        self.fc_q = [nn.Linear(hid_dim, hid_dim).to(device) for _ in range(n_domain)]
+        self.fc_k = [nn.Linear(hid_dim, hid_dim).to(device) for _ in range(n_domain)]
+        self.fc_v = [nn.Linear(hid_dim, hid_dim).to(device) for _ in range(n_domain)]
 
-        self.fc_o = nn.Linear(hid_dim, hid_dim)
+        self.fc_o = nn.Linear(hid_dim, hid_dim).to(device)
 
-        self.dropout = nn.Dropout(dropout)
+        self.dropout = nn.Dropout(dropout).to(device)
 
         self.scale = torch.sqrt(torch.FloatTensor([self.head_dim])).to(device)
 
@@ -157,11 +157,11 @@ class MultiHeadAttentionLayer(nn.Module):
         batch_size = query.shape[0]
         # [batch_size, query_len, n_domain]
         dq = (1 - self.domain_eps) * torch.softmax(self.fc_rq(query), dim=-1) + self.domain_eps / self.n_domain
-        q = torch.zeros(query.shape)
+        q = torch.zeros(query.shape).to(self.device)
         dk = (1 - self.domain_eps) * torch.softmax(self.fc_rk(key), dim=-1) + self.domain_eps / self.n_domain
-        k = torch.zeros(key.shape)
+        k = torch.zeros(key.shape).to(self.device)
         dv = (1 - self.domain_eps) * torch.softmax(self.fc_rv(value), dim=-1) + self.domain_eps / self.n_domain
-        v = torch.zeros(value.shape)
+        v = torch.zeros(value.shape).to(self.device)
         # d = (dq + dk + dv)/3
 
         for i_d in range(self.n_domain):
@@ -169,20 +169,14 @@ class MultiHeadAttentionLayer(nn.Module):
             i_key = self.fc_k[i_d](key)
             i_value = self.fc_v[i_d](value)
 
-            for i_q_b in range(i_query.shape[0]):
-                for i_q in range(i_query.shape[1]):
-                    i_query[i_q_b, i_q, :] *= dq[i_q_b, i_q, i_d]
-            q += i_query
+            i_dq = torch.repeat_interleave(dq[:, :, i_d], self.hid_dim, dim=1).view(i_query.shape)
+            q += (i_query * i_dq)
 
-            for i_k_b in range(i_key.shape[0]):
-                for i_k in range(i_key.shape[1]):
-                    i_key[i_k_b, i_k, :] *= dk[i_k_b, i_k, i_d]
-            k += i_key
+            i_dk = torch.repeat_interleave(dk[:, :, i_d], self.hid_dim, dim=1).view(i_key.shape)
+            k += (i_key * i_dk)
 
-            for i_v_b in range(i_value.shape[0]):
-                for i_v in range(i_value.shape[1]):
-                    i_value[i_v_b, i_v, :] *= dv[i_v_b, i_v, i_d]
-            v += i_value
+            i_dv = torch.repeat_interleave(dv[:, :, i_d], self.hid_dim, dim=1).view(i_value.shape)
+            v += (i_value * i_dv)
 
         q /= self.n_domain
         k /= self.n_domain
@@ -234,8 +228,8 @@ class Decoder(nn.Module):
 
         self.device = device
 
-        self.tok_embedding = nn.Embedding(output_dim, hid_dim)
-        self.pos_embedding = nn.Embedding(max_length, hid_dim)
+        self.tok_embedding = nn.Embedding(output_dim, hid_dim).to(device)
+        self.pos_embedding = nn.Embedding(max_length, hid_dim).to(device)
 
         self.layers = nn.ModuleList([DecoderLayer(hid_dim, n_heads, pf_dim, dropout, n_domain, domain_eps, device) for _ in range(n_layers)])
 
@@ -284,7 +278,7 @@ class DecoderLayer(nn.Module):
         self.ff_layer_norm = nn.LayerNorm(hid_dim)
         self.self_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, n_domain, domain_eps, device)
         self.encoder_attention = MultiHeadAttentionLayer(hid_dim, n_heads, dropout, n_domain, domain_eps, device)
-        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout, n_domain, domain_eps)
+        self.position_wise_feedforward = PositionWiseFeedforwardLayer(hid_dim, pf_dim, dropout, n_domain, domain_eps, device)
         self.dropout = nn.Dropout(dropout)
 
     def forward(self, trg, enc_src, trg_mask, src_mask):

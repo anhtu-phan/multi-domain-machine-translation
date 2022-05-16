@@ -15,6 +15,7 @@ from transformer_pytorch.optim import SchedulerOptim
 from transformer_pytorch.loss import cal_performance, cal_domain_loss
 import preprocess
 import build_dataset
+import time
 
 
 def count_parameters(model):
@@ -30,6 +31,7 @@ def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging
     model.train()
     epoch_loss, epoch_loss_domain, epoch_word_total, epoch_n_word_correct = 0, 0, 0, 0
     for i, batch in enumerate(iterator):
+        print(f"\n\n{'-'*10} Batch {i} {'-'*10}\n")
         if debugging and i == 2:
             break
 
@@ -38,24 +40,32 @@ def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging
         domain = batch.domain
 
         optimizer.zero_grad()
+        backward_time = time.time()
         if mutil_domain:
             output, _, domain_prob = model(src, trg[:, :-1])
         else:
             output, _ = model(src, trg[:, :-1])
+        print(f"backward_time = {(time.time() - backward_time):.3f}\n")
 
         output_dim = output.shape[-1]
         output = output.contiguous().view(-1, output_dim)
         trg = trg[:, 1:].contiguous().view(-1)
 
+        cal_loss_time = time.time()
         loss, n_correct, n_word = cal_performance(output, trg, trg_pad_idx, True, 0.1)
+        print(f"cal_loss_time = {(time.time()-cal_loss_time):.3f}\n")
         if mutil_domain:
             l_mix = cal_domain_loss(domain, domain_prob)
             loss += l_mix
             epoch_loss_domain += l_mix.item()
 
+        cal_gradient_time = time.time()
         loss.backward()
+        print(f"cal_gradient_time = {(time.time() - cal_gradient_time):.3f}\n")
 
+        update_parameter_time = time.time()
         optimizer.step()
+        print(f"update_parameter_time = {(time.time() - update_parameter_time):.3f}\n")
 
         epoch_loss += loss.item()
         epoch_word_total += n_word
@@ -201,8 +211,9 @@ def main():
         _model = DomainSeq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
     else:
         _model = Seq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
-    print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}")
+    print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}\n")
     model_name = 'model_mutil.pt'
+    wandb_name = 'training-transformer-en2de-mutil'
     saved_model_dir = './checkpoints/model_de_en/'
     saved_model_path = saved_model_dir+model_name
     best_valid_loss = float('inf')
@@ -211,19 +222,22 @@ def main():
     if not os.path.exists(saved_model_dir):
         os.makedirs(saved_model_dir)
     if os.path.exists(saved_model_path):
-        print(f"Load saved model {'.'*10}")
+        print(f"Load saved model {'.'*10}\n")
         last_checkpoint = torch.load(saved_model_path, map_location=torch.device(device))
         best_valid_loss = last_checkpoint['best_valid_loss']
         saved_epoch = last_checkpoint['epoch']
         _model.load_state_dict(last_checkpoint['state_dict'])
         CONFIG['LEARNING_RATE'] = last_checkpoint['lr']
-    # else:
-    #     _model.apply(initialize_weights)
+        wandb.init(name=wandb_name, project="multi-domain-machine-translation", config=CONFIG,
+                   resume=True)
+    else:
+        # _model.apply(initialize_weights)
+        wandb.init(name=wandb_name, project="multi-domain-machine-translation", config=CONFIG,
+                   resume=False)
 
     _optimizer = SchedulerOptim(torch.optim.Adam(_model.parameters(), lr=CONFIG['LEARNING_RATE'], betas=(0.9, 0.98),
                                                  weight_decay=0.0001), 1, CONFIG['HID_DIM'], 4000, 5e-4, saved_epoch)
 
-    wandb.init(name="training-transformer-en2de-mutil", project="multi-domain-machine-translation", config=CONFIG, resume=True)
     wandb.watch(_model, log='all')
 
     for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
@@ -281,7 +295,7 @@ if __name__ == '__main__':
         "ENC_DROPOUT": 0.2,
         "DEC_DROPOUT": 0.2,
         "N_EPOCHS": 1000000,
-        "DOMAIN_EPS": 0.1,
+        "DOMAIN_EPS": 0.05,
         "CLIP": 1
     }
     main()
