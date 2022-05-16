@@ -198,8 +198,10 @@ def main():
     trg_pad_idx = trg.vocab.stoi[trg.pad_token]
 
     if len(data_dir) > 1:
+        print(f"{'-'*10}Construct domain mixing network{'-'*10}")
         _model = DomainSeq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
     else:
+        print(f"{'-'*10}Construct original network{'-'*10}")
         _model = Seq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
     print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}\n")
     model_name = 'model_mutil.pt'
