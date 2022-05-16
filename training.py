@@ -27,9 +27,10 @@ def initialize_weights(m):
 
 
 def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging=False):
+    print(f"\n{'.'*10}Training{'.'*10}")
     model.train()
     epoch_loss, epoch_loss_domain, epoch_word_total, epoch_n_word_correct = 0, 0, 0, 0
-    for i, batch in enumerate(iterator):
+    for i, batch in enumerate(tqdm(iterator)):
         if debugging and i == 2:
             break
 
@@ -68,10 +69,11 @@ def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging
 
 
 def evaluate(model, iterator, trg_pad_idx, mutil_domain=False, debugging=False):
+    print(f"\n{'.'*10}Evaluating{'.'*10}")
     model.eval()
     epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     with torch.no_grad():
-        for i, batch in enumerate(iterator):
+        for i, batch in enumerate(tqdm(iterator)):
             if debugging and i == 2:
                 break
 
