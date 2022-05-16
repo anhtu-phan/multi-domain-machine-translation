@@ -92,6 +92,7 @@ class PositionWiseFeedforwardLayer(nn.Module):
                  device,
                  ):
         super().__init__()
+        self.hid_dim = hid_dim
         self.device = device
         self.n_domain = n_domain
         self.domain_eps = domain_eps
