@@ -188,8 +188,12 @@ def main():
     if len(data_dir) > 1:
         enc = DomainEncoder(input_dim, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'],
                             CONFIG['ENC_PF_DIM'], CONFIG['ENC_DROPOUT'], len(data_dir), CONFIG['DOMAIN_EPS'], device)
-        dec = DomainDecoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'],
-                            CONFIG['DEC_PF_DIM'], CONFIG['DEC_DROPOUT'], len(data_dir), CONFIG['DOMAIN_EPS'], device)
+        if CONFIG['MODEL_TYPE'] == "encoder":
+            dec = Decoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'],
+                          CONFIG['DEC_PF_DIM'], CONFIG['DEC_DROPOUT'], device)
+        else:
+            dec = DomainDecoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'],
+                                CONFIG['DEC_PF_DIM'], CONFIG['DEC_DROPOUT'], len(data_dir), CONFIG['DOMAIN_EPS'], device)
     else:
         enc = Encoder(input_dim, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'],
                       CONFIG['ENC_DROPOUT'], device)
@@ -206,8 +210,8 @@ def main():
         print(f"{'-'*10}Construct original network{'-'*10}")
         _model = Seq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
     print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}\n")
-    model_name = 'model_mutil.pt'
-    wandb_name = 'training-transformer-en2de-mutil'
+    model_name = 'model_mutil_with_init.pt'
+    # wandb_name = 'training-transformer-en2de-mutil-with-init'
     saved_model_dir = './checkpoints/model_de_en/'
     saved_model_path = saved_model_dir+model_name
     best_valid_loss = float('inf')
@@ -222,17 +226,17 @@ def main():
         saved_epoch = last_checkpoint['epoch']
         _model.load_state_dict(last_checkpoint['state_dict'])
         CONFIG['LEARNING_RATE'] = last_checkpoint['lr']
-        wandb.init(name=wandb_name, project="multi-domain-machine-translation", config=CONFIG,
-                   resume=True)
+        # wandb.init(name=wandb_name, project="multi-domain-machine-translation", config=CONFIG,
+        #            resume=True)
     else:
-        # _model.apply(initialize_weights)
-        wandb.init(name=wandb_name, project="multi-domain-machine-translation", config=CONFIG,
-                   resume=False)
+        _model.apply(initialize_weights)
+        # wandb.init(name=wandb_name, project="multi-domain-machine-translation", config=CONFIG,
+        #            resume=False)
 
     _optimizer = SchedulerOptim(torch.optim.Adam(_model.parameters(), lr=CONFIG['LEARNING_RATE'], betas=(0.9, 0.98),
                                                  weight_decay=0.0001), 1, CONFIG['HID_DIM'], 4000, 5e-4, saved_epoch)
 
-    wandb.watch(_model, log='all')
+    # wandb.watch(_model, log='all')
 
     for epoch in tqdm(range(saved_epoch, CONFIG['N_EPOCHS'])):
         logs = dict()
@@ -263,7 +267,7 @@ def main():
             }
             torch.save(checkpoint, saved_model_path)
 
-        wandb.log(logs, step=epoch)
+        # wandb.log(logs, step=epoch)
 
 
 if __name__ == '__main__':
@@ -290,6 +294,7 @@ if __name__ == '__main__':
         "DEC_DROPOUT": 0.2,
         "N_EPOCHS": 1000000,
         "DOMAIN_EPS": 0.05,
-        "CLIP": 1
+        "CLIP": 1,
+        "MODEL_TYPE": "encoder"
     }
     main()

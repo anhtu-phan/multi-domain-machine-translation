@@ -9,4 +9,4 @@
 #SBATCH --mail-user=anhtu@cl.uni-heidelberg.de
 #SBATCH --mail-type=ALL
 
-srun /home/students/anhtu/multi-domain-machine-translation/bash/run_eval.sh
+srun bash/run_eval.sh
