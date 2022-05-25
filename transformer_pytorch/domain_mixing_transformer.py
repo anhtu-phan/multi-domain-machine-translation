@@ -307,7 +307,9 @@ class Seq2Seq(nn.Module):
                  decoder,
                  src_pad_idx,
                  trg_pad_idx,
-                 device):
+                 use_encoder_only,
+                 device,
+                 ):
         super().__init__()
 
         self.encoder = encoder
@@ -315,6 +317,7 @@ class Seq2Seq(nn.Module):
         self.src_pad_idx = src_pad_idx
         self.trg_pad_idx = trg_pad_idx
         self.device = device
+        self.use_encoder_only = use_encoder_only
 
     def make_src_mask(self, src):
         # src = [batch_size, src_len]
@@ -341,7 +344,9 @@ class Seq2Seq(nn.Module):
         trg_mask = self.make_trg_mask(trg)
 
         enc_src, enc_domain = self.encoder(src, src_mask)
-
-        output, attention, dec_domain = self.decoder(trg, enc_src, trg_mask, src_mask)
-
-        return output, attention, dec_domain
+        if self.use_encoder_only:
+            output, attention = self.decoder(trg, enc_src, trg_mask, src_mask)
+            return output, attention, enc_domain
+        else:
+            output, attention, dec_domain = self.decoder(trg, enc_src, trg_mask, src_mask)
+            return output, attention, dec_domain
