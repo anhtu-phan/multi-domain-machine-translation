@@ -12,9 +12,10 @@ from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 import preprocess
 
 
-def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50, tokenizer=None):
+def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50, tokenizer=None, bpe=None):
     model.eval()
-
+    if isinstance(sentence, str) and bpe is not None:
+        sentence = bpe.process_line(sentence)
     if isinstance(sentence, str) and tokenizer is not None:
         sentence = tokenizer(sentence)
 

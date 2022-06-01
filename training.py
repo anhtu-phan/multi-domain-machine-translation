@@ -8,12 +8,11 @@ import argparse
 import pandas as pd
 from mosestokenizer import *
 from torchtext.legacy.data import LabelField, Field, TabularDataset
-from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
-from transformer_pytorch.domain_mixing_transformer import Encoder as DomainEncoder, Decoder as DomainDecoder, Seq2Seq as DomainSeq2Seq
 from transformer_pytorch.optim import SchedulerOptim
 from transformer_pytorch.loss import cal_performance, cal_domain_loss
 import preprocess
 import build_dataset
+from model import load_model
 
 
 def count_parameters(model):
@@ -150,25 +149,7 @@ def main():
     src_pad_idx = src.vocab.stoi[src.pad_token]
     trg_pad_idx = trg.vocab.stoi[trg.pad_token]
 
-    if len(data_dir) > 1:
-        print(f"{'-' * 10}Construct domain mixing network{'-' * 10}")
-        enc = DomainEncoder(input_dim, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'],
-                            CONFIG['ENC_PF_DIM'], CONFIG['ENC_DROPOUT'], len(data_dir), CONFIG['DOMAIN_EPS'], device)
-        if CONFIG['MODEL_TYPE'] == "encoder":
-            dec = Decoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'],
-                          CONFIG['DEC_PF_DIM'], CONFIG['DEC_DROPOUT'], device)
-            _model = DomainSeq2Seq(enc, dec, src_pad_idx, trg_pad_idx, True, device).to(device)
-        else:
-            dec = DomainDecoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'],
-                                CONFIG['DEC_PF_DIM'], CONFIG['DEC_DROPOUT'], len(data_dir), CONFIG['DOMAIN_EPS'], device)
-            _model = DomainSeq2Seq(enc, dec, src_pad_idx, trg_pad_idx, False, device).to(device)
-    else:
-        print(f"{'-' * 10}Construct original network{'-' * 10}")
-        enc = Encoder(input_dim, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'],
-                      CONFIG['ENC_DROPOUT'], device)
-        dec = Decoder(output_dim, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'], CONFIG['DEC_PF_DIM'],
-                      CONFIG['DEC_DROPOUT'], device)
-        _model = Seq2Seq(enc, dec, src_pad_idx, trg_pad_idx, device).to(device)
+    _model = load_model(input_dim, output_dim, src_pad_idx, trg_pad_idx, CONFIG, len(data_dir), device)
 
     print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}\n")
     model_name = f'{CONFIG["MODEL_TYPE"]}_mutil_with_init.pt'
