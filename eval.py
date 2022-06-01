@@ -5,6 +5,8 @@ import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from torchtext.data.metrics import bleu_score
 from tqdm import tqdm
+from mosestokenizer import *
+from torchtext.legacy.data import Field
 
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 import preprocess
@@ -122,10 +124,18 @@ if __name__ == "__main__":
         "N_EPOCHS": 1000000,
         "CLIP": 1
     }
-
+    tokenize_src = MosesTokenizer('en')
+    tokenize_trg = MosesTokenizer("de")
+    SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
+                batch_first=True)
+    TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
+                batch_first=True)
     _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    (SRC, TRG), _, _, test_data = preprocess.main(data_dir, test_data_dir, 100, use_bpe=True)
-
+    train_data, _, test_data = preprocess.read_data(SRC, TRG, data_folder=data_dir,
+                                                    test_data_folder=test_data_dir,
+                                                    use_bpe=True, max_length=100)
+    SRC.build_vocab(train_data, min_freq=2)
+    TRG.build_vocab(train_data, min_freq=2)
     INPUT_DIM = len(SRC.vocab)
     OUTPUT_DIM = len(TRG.vocab)
 

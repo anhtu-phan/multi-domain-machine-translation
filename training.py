@@ -7,7 +7,6 @@ import os
 import argparse
 import pandas as pd
 from mosestokenizer import *
-from torchtext.legacy.datasets import TranslationDataset
 from torchtext.legacy.data import LabelField, Field, TabularDataset
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 from transformer_pytorch.domain_mixing_transformer import Encoder as DomainEncoder, Decoder as DomainDecoder, Seq2Seq as DomainSeq2Seq
@@ -96,43 +95,6 @@ def evaluate(model, iterator, trg_pad_idx, mutil_domain=False, debugging=False):
     return epoch_loss / len(iterator), epoch_loss/epoch_word_total, epoch_n_word_correct/epoch_word_total
 
 
-def read_data(SRC, TRG, data_folder, test_data_folder, use_bpe=False, max_length=100):
-    train_data_path, val_data_path, test_data_path = preprocess.build_bpe_data(data_folder, test_data_folder)
-
-    if not use_bpe:
-        fields = [('src', SRC), ('trg', TRG)]
-
-        train_data, valid_data, test_data = TabularDataset.splits(path=data_dir, train='train.tsv',
-                                                                  test='test.tsv', validation='valid.tsv', format='tsv',
-                                                                  fields=fields, skip_header=True)
-        return (SRC, TRG), train_data, valid_data, test_data
-
-    fields = (SRC, TRG)
-
-    def filter_examples_with_length(x):
-        return len(vars(x)['src']) <= max_length and len(vars(x)['trg']) <= max_length
-
-    train = TranslationDataset(
-        fields=fields,
-        path=train_data_path,
-        exts=('.src', '.trg'),
-        filter_pred=filter_examples_with_length)
-
-    val = TranslationDataset(
-        fields=fields,
-        path=val_data_path,
-        exts=('.src', '.trg'),
-        filter_pred=filter_examples_with_length)
-
-    test = TranslationDataset(
-        fields=fields,
-        path=test_data_path,
-        exts=('.src', '.trg'),
-        filter_pred=filter_examples_with_length)
-
-    return train, val, test
-
-
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
@@ -169,8 +131,9 @@ def main():
                                                                   fields=fields, skip_header=True)
         domain.build_vocab(train_data)
     else:
-        train_data, valid_data, test_data = read_data(src, trg, data_folder=data_dir, test_data_folder=test_data_dir,
-                                                      use_bpe=True, max_length=100)
+        train_data, valid_data, test_data = preprocess.read_data(src, trg, data_folder=data_dir,
+                                                                 test_data_folder=test_data_dir,
+                                                                 use_bpe=True, max_length=100)
 
     src.build_vocab(train_data, min_freq=2)
     trg.build_vocab(train_data, min_freq=2)
@@ -293,6 +256,6 @@ if __name__ == '__main__':
         "N_EPOCHS": 1000000,
         "DOMAIN_EPS": 0.05,
         "CLIP": 1,
-        "MODEL_TYPE": "encoder"
+        "MODEL_TYPE": "edc"
     }
     main()

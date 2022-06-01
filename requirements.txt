@@ -15,3 +15,4 @@ six~=1.16.0
 wandb~=0.12.15
 mosestokenizer~=1.0.0
 matplotlib~=3.3.4
+flask==2.0.3

@@ -4,6 +4,8 @@ import codecs
 from learn_bpe import learn_bpe
 from apply_bpe import BPE
 from mosestokenizer import *
+from torchtext.legacy.data import TabularDataset
+from torchtext.legacy.datasets import TranslationDataset
 
 tokenize_src = MosesTokenizer('en')
 tokenize_trg = MosesTokenizer("de")
@@ -61,3 +63,40 @@ def build_bpe_data(data_dir, test_data_dir):
     sys.stderr.write(f"Done.\n")
 
     return os.path.join(data_dir, enc_train_files_prefix), os.path.join(data_dir, enc_val_files_prefix), os.path.join(data_dir, enc_test_files_prefix),
+
+
+def read_data(SRC, TRG, data_folder, test_data_folder, use_bpe=False, max_length=100):
+
+    if not use_bpe:
+        fields = [('src', SRC), ('trg', TRG)]
+
+        train_data, valid_data, test_data = TabularDataset.splits(path=data_folder, train='train.tsv',
+                                                                  test='test.tsv', validation='valid.tsv', format='tsv',
+                                                                  fields=fields, skip_header=True)
+        return (SRC, TRG), train_data, valid_data, test_data
+
+    train_data_path, val_data_path, test_data_path = build_bpe_data(data_folder, test_data_folder)
+    fields = (SRC, TRG)
+
+    def filter_examples_with_length(x):
+        return len(vars(x)['src']) <= max_length and len(vars(x)['trg']) <= max_length
+
+    train = TranslationDataset(
+        fields=fields,
+        path=train_data_path,
+        exts=('.src', '.trg'),
+        filter_pred=filter_examples_with_length)
+
+    val = TranslationDataset(
+        fields=fields,
+        path=val_data_path,
+        exts=('.src', '.trg'),
+        filter_pred=filter_examples_with_length)
+
+    test = TranslationDataset(
+        fields=fields,
+        path=test_data_path,
+        exts=('.src', '.trg'),
+        filter_pred=filter_examples_with_length)
+
+    return train, val, test
