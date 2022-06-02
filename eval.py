@@ -89,7 +89,7 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len=50):
         src = vars(data[i])['src']
         trg = vars(data[i])['trg']
         if len(src) > 98:
-            print(f"\nSkip long sentence {'-'*10}{'>'*10}")
+            # print(f"\nSkip long sentence {'-'*10}{'>'*10}")
             nb_skip += 1
             continue
         pred_trg, _ = translate_sentence(src, src_field, trg_field, model, device, max_len)
