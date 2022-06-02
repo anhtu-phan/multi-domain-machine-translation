@@ -1,6 +1,3 @@
-import os.path
-
-import torch
 import pandas as pd
 from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
 from transformer_pytorch.domain_mixing_transformer import Encoder as DomainEncoder, Decoder as DomainDecoder, Seq2Seq as DomainSeq2Seq

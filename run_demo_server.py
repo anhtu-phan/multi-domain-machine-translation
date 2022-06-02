@@ -1,11 +1,7 @@
-import os
 import torch
 from flask import Flask, request, render_template
 import argparse
-from apply_bpe import BPE
-from learn_bpe import learn_bpe
 import sys
-import codecs
 from mosestokenizer import *
 from model import load_model
 from eval import translate_sentence

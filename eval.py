@@ -1,16 +1,11 @@
 import argparse
-
 import torch
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
 from torchtext.data.metrics import bleu_score
 from tqdm import tqdm
-from mosestokenizer import *
-from torchtext.legacy.data import Field
-
 from model import load_model
 from constants import MODEL_TYPE, CONFIG
-import preprocess
 
 
 def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50, tokenizer=None, bpe=None):
