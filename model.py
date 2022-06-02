@@ -47,7 +47,7 @@ def load_data(data_dir, test_data_dir):
                                                                   fields=fields, skip_header=True)
         domain.build_vocab(train_data)
     else:
-        train_data, valid_data, test_data, bpe = preprocess.read_data(src, trg, data_folder=data_dir,
+        train_data, valid_data, test_data, bpe = preprocess.read_data(src, trg, data_folder=data_dir[0],
                                                                       test_data_folder=test_data_dir,
                                                                       use_bpe=True, max_length=100)
 
@@ -59,8 +59,7 @@ def load_data(data_dir, test_data_dir):
 
 def load_model(config, data_dir, test_data_dir, device):
     train_data, valid_data, test_data, bpe = load_data(data_dir, test_data_dir)
-    src.build_vocab(train_data, min_freq=2)
-    trg.build_vocab(train_data, min_freq=2)
+
     input_dim = len(src.vocab)
     output_dim = len(trg.vocab)
     src_pad_idx = src.vocab.stoi[src.pad_token]

@@ -62,8 +62,7 @@ def build_bpe_data(data_dir, test_data_dir):
     encode_files(bpe, test_src_path, test_trg_path, data_dir, enc_test_files_prefix)
     sys.stderr.write(f"Done.\n")
 
-    return os.path.join(data_dir, enc_train_files_prefix), os.path.join(data_dir, enc_val_files_prefix), \
-           os.path.join(data_dir, enc_test_files_prefix), bpe
+    return os.path.join(data_dir, enc_train_files_prefix), os.path.join(data_dir, enc_val_files_prefix), os.path.join(data_dir, enc_test_files_prefix), bpe
 
 
 def read_data(SRC, TRG, data_folder, test_data_folder, use_bpe=False, max_length=100):
