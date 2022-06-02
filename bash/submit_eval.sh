@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-#SBATCH --job-name=nmt_eval
-#SBATCH --output=nmt_eval_output_de_en_news.txt
+#SBATCH --job-name=ted_mul
+#SBATCH --output=nmt_eval_output_de_en_ted_mutil.txt
 #SBATCH --ntasks=1
 #SBATCH --partition=students
 #SBATCH --gres=gpu:1

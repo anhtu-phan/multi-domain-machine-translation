@@ -22,21 +22,21 @@ def load_data(data_dir, test_data_dir):
     if len(data_dir) > 1:
         domain = LabelField()
         for i, d in enumerate(data_dir):
-            train_type, valid_type, test_type, bpe = preprocess.build_bpe_data(d, d)
+            train_type, valid_type, test_type, bpe = preprocess.build_bpe_data(d, test_data_dir)
             tr = build_dataset.build_data(train_type, 'src', 'trg', i)
             v = build_dataset.build_data(valid_type, 'src', 'trg', i)
             te = build_dataset.build_data(test_type, 'src', 'trg', i)
             if i == 0:
                 train_data = tr
                 valid_data = v
-                test_data = te
+                # test_data = te
             else:
                 train_data = pd.concat([train_data, tr])
                 valid_data = pd.concat([valid_data, v])
-                test_data = pd.concat([test_data, te])
+                # test_data = pd.concat([test_data, te])
         train_data.to_csv(f"{data_dir[0]}/train_combined.tsv", sep="\t", index=False)
         valid_data.to_csv(f"{data_dir[0]}/valid_combined.tsv", sep="\t", index=False)
-        test_data.to_csv(f"{data_dir[0]}/test_combined.tsv", sep="\t", index=False)
+        te.to_csv(f"{data_dir[0]}/test_combined.tsv", sep="\t", index=False)
 
         fields = [('src', src), ('trg', trg), ('domain', domain)]
 

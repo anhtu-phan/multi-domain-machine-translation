@@ -42,8 +42,8 @@ def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50
         trg_mask = model.make_trg_mask(trg_tensor)
 
         with torch.no_grad():
-            if len(data_dir) > 1:
-                output, attention, _domain_prob = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
+            if len(data_dir) > 1 and CONFIG["MODEL_TYPE"] == MODEL_TYPE[1]:
+                output, attention, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
             else:
                 output, attention = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
 
