@@ -102,7 +102,7 @@ def evaluate(model, iterator, trg_pad_idx, mutil_domain=False, debugging=False):
 def main():
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
 
-    _model, train_data, valid_data, test_data, _, trg, _ = load_model(CONFIG, data_dir, data_dir, device)
+    _model, train_data, valid_data, test_data, _, trg, _ = load_model(CONFIG, data_dir, data_dir[0], device)
 
     train_iterator, valid_iterator, test_iterator = BucketIterator.splits((train_data, valid_data, test_data),
                                                                           sort_key=lambda x: len(x.src),
