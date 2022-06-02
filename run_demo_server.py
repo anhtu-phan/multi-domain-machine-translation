@@ -20,13 +20,13 @@ def index():
 def index_post():
     input_sentence = request.form['input_sentence'].strip()
     result = []
-    r, _ = translate_sentence(input_sentence, model_src, model_trg, _model, device, 100, tokenize_src, model_bpe)
+    r, _ = translate_sentence(input_sentence, model_src, model_trg, _model, device, 1, 100, tokenize_src, model_bpe)
     result.append({"model_type": "News+TED", "result": r})
-    r, _ = translate_sentence(input_sentence, model_edc_src, model_edc_trg, _model_edc, device, 100, tokenize_src, model_edc_bpe)
+    r, _ = translate_sentence(input_sentence, model_edc_src, model_edc_trg, _model_edc, device, 2, 100, tokenize_src, model_edc_bpe)
     result.append({"model_type": "E/DC", "result": r})
-    r, _ = translate_sentence(input_sentence, model_edc_with_int_src, model_edc_with_int_trg, _model_edc_with_int, 100, tokenize_src, model_edc_with_int_bpe)
+    r, _ = translate_sentence(input_sentence, model_edc_with_int_src, model_edc_with_int_trg, _model_edc_with_int, 2, 100, tokenize_src, model_edc_with_int_bpe)
     result.append({"model_type": "E/DC with init", "result": r})
-    r, _ = translate_sentence(input_sentence, model_encoder_src, model_encoder_trg, _model_encoder, device, 100, tokenize_src, model_encoder_bpe)
+    r, _ = translate_sentence(input_sentence, model_encoder_src, model_encoder_trg, _model_encoder, device, 2, 100, tokenize_src, model_encoder_bpe)
     result.append({"model_type": "Encoder", "result": r})
     return render_template('index.html', result=result, input_sentence=input_sentence)
 
@@ -45,7 +45,7 @@ if __name__ == '__main__':
     data_dir_domain = args.data_dir_domain
 
     sys.stderr.write(f"Load Direct training model ...\n")
-    _model, _, _, _, model_src, model_trg, model_bpe = load_model(CONFIG, data_dir_mixed, data_dir_mixed, device)
+    _model, _, _, _, model_src, model_trg, model_bpe = load_model(CONFIG, [data_dir_mixed], data_dir_mixed, device)
     checkpoint = torch.load("./checkpoints/model_de_en/model.pt", map_location=torch.device(device))
     _model.load_state_dict(checkpoint['state_dict'])
 

@@ -8,7 +8,7 @@ from model import load_model
 from constants import MODEL_TYPE, CONFIG
 
 
-def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50, tokenizer=None, bpe=None):
+def translate_sentence(sentence, src_field, trg_field, model, device, nb_domain, max_len=50, tokenizer=None, bpe=None):
     model.eval()
     if isinstance(sentence, str) and bpe is not None:
         sentence = bpe.process_line(sentence)
@@ -25,7 +25,7 @@ def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50
     src_mask = model.make_src_mask(src_tensor)
 
     with torch.no_grad():
-        if len(data_dir) > 1:
+        if nb_domain > 1:
             enc_src, _ = model.encoder(src_tensor, src_mask)
         else:
             enc_src = model.encoder(src_tensor, src_mask)
@@ -87,7 +87,7 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len=50):
             # print(f"\nSkip long sentence {'-'*10}{'>'*10}")
             nb_skip += 1
             continue
-        pred_trg, _ = translate_sentence(src, src_field, trg_field, model, device, max_len)
+        pred_trg, _ = translate_sentence(src, src_field, trg_field, model, device, len(data_dir), max_len)
 
         # print(f"\ntrg: {trg}\npred:{pred_trg}")
 

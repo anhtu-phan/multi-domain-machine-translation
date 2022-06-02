@@ -13,5 +13,6 @@ CONFIG = {
     "DEC_DROPOUT": 0.2,
     "N_EPOCHS": 1000000,
     "DOMAIN_EPS": 0.05,
-    "CLIP": 1
+    "CLIP": 1,
+    "MODEL_TYPE": MODEL_TYPE[1]
 }

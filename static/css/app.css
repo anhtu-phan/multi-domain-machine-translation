@@ -12,6 +12,13 @@ div#loading {
     cursor: wait;
 }
 
+#upload_sentence{
+	width: 100%;
+	height: 100px;
+	overflow-y: scroll;
+	margin-bottom: 5px;
+}
+
 table {
     margin-top: 10px;
     font-family: arial, sans-serif;

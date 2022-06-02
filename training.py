@@ -112,7 +112,7 @@ def main():
                                                                           device=device)
 
     print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}\n")
-    model_name = f'{CONFIG["MODEL_TYPE"]}_mutil_with_init.pt'
+    model_name = f'{CONFIG["MODEL_TYPE"]}.pt'
     wandb_name = 'training-transformer-en2de-mutil-with-init'
     saved_model_dir = './checkpoints/model_de_en/'
     saved_model_path = saved_model_dir+model_name
@@ -175,7 +175,6 @@ def main():
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Mutil domain machine translation evaluation")
     parser.add_argument("--data_dir", nargs='+', default=[])
-    parser.add_argument("--test_data_dir", type=str)
     parser.add_argument("--model_type", type=int)
 
     args = parser.parse_args()
