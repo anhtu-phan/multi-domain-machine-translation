@@ -7,5 +7,5 @@ else
   source venv/bin/activate
   pip install -r requirements.txt
 fi
-python eval.py --data_dir ./datasets/de-en/mixed --test_data_dir ./datasets/de-en/news --model_path ./checkpoints/model_de_en/model.pt
+python eval.py --data_dir ./datasets/de-en/news ./datasets/de-en/ted --test_data_dir ./datasets/de-en/news --model_path ./checkpoints/model_de_en/model_mutil.pt --model_type 1
 deactivate

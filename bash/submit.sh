@@ -1,7 +1,7 @@
 #!/bin/bash
 #
 #SBATCH --job-name=nmt_training
-#SBATCH --output=nmt_training_output.txt
+#SBATCH --output=nmt_training_output_matrix.txt
 #SBATCH --ntasks=1
 #SBATCH --partition=students
 #SBATCH --gres=gpu:mem11g:1

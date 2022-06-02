@@ -9,7 +9,7 @@ from mosestokenizer import *
 from torchtext.legacy.data import Field
 
 from model import load_model
-from constants import MODEL_TYPE
+from constants import MODEL_TYPE, CONFIG
 import preprocess
 
 
@@ -30,7 +30,10 @@ def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50
     src_mask = model.make_src_mask(src_tensor)
 
     with torch.no_grad():
-        enc_src = model.encoder(src_tensor, src_mask)
+        if len(data_dir) > 1:
+            enc_src, _ = model.encoder(src_tensor, src_mask)
+        else:
+            enc_src = model.encoder(src_tensor, src_mask)
 
     trg_indexes = [trg_field.vocab.stoi[trg_field.init_token]]
 
@@ -39,7 +42,10 @@ def translate_sentence(sentence, src_field, trg_field, model, device, max_len=50
         trg_mask = model.make_trg_mask(trg_tensor)
 
         with torch.no_grad():
-            output, attention = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
+            if len(data_dir) > 1:
+                output, attention, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
+            else:
+                output, attention = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
 
         pred_token = output.argmax(2)[:, -1].item()
         trg_indexes.append(pred_token)
@@ -101,7 +107,7 @@ def calculate_bleu(data, src_field, trg_field, model, device, max_len=50):
 if __name__ == "__main__":
 
     parser = argparse.ArgumentParser(description="Mutil domain machine translation evaluation")
-    parser.add_argument("--data_dir", type=str)
+    parser.add_argument("--data_dir", nargs='+', default=[])
     parser.add_argument("--test_data_dir", type=str)
     parser.add_argument("--model_path", type=str)
     parser.add_argument("--model_type", type=int)
@@ -113,29 +119,10 @@ if __name__ == "__main__":
     saved_model_path = args.model_path
     model_type = args.model_type
 
-    CONFIG = {"LEARNING_RATE": 1e-7, "BATCH_SIZE": 32, "HID_DIM": 512, "ENC_LAYERS": 6, "DEC_LAYERS": 6, "ENC_HEADS": 4,
-              "DEC_HEADS": 4, "ENC_PF_DIM": 1024, "DEC_PF_DIM": 1024, "ENC_DROPOUT": 0.2, "DEC_DROPOUT": 0.2,
-              "N_EPOCHS": 1000000, "CLIP": 1, 'MODEL_TYPE': MODEL_TYPE[model_type]}
-
-    tokenize_src = MosesTokenizer('en')
-    tokenize_trg = MosesTokenizer("de")
-    SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
-                batch_first=True)
-    TRG = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
-                batch_first=True)
+    CONFIG["MODEL_TYPE"] = MODEL_TYPE[model_type]
     _device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    train_data, _, test_data = preprocess.read_data(SRC, TRG, data_folder=data_dir,
-                                                    test_data_folder=test_data_dir,
-                                                    use_bpe=True, max_length=100)
-    SRC.build_vocab(train_data, min_freq=2)
-    TRG.build_vocab(train_data, min_freq=2)
-    INPUT_DIM = len(SRC.vocab)
-    OUTPUT_DIM = len(TRG.vocab)
-    SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
-    TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
-
-    _model = load_model(INPUT_DIM, OUTPUT_DIM, SRC_PAD_IDX, TRC_PAD_IDX, CONFIG, len(data_dir), _device)
+    _model, _, _, test_data, src, trg, _ = load_model(CONFIG, data_dir, test_data_dir, _device)
     checkpoint = torch.load(saved_model_path, map_location=torch.device(_device))
     _model.load_state_dict(checkpoint['state_dict'])
-    bleu_score = calculate_bleu(test_data, SRC, TRG, _model, _device)
+    bleu_score = calculate_bleu(test_data, src, trg, _model, _device)
     print(f"\n\n{'-'*10}BLEU_SCORE: {bleu_score:.2f}{'-'*10}")
