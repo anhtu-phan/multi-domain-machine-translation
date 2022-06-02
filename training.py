@@ -12,6 +12,7 @@ from transformer_pytorch.optim import SchedulerOptim
 from transformer_pytorch.loss import cal_performance, cal_domain_loss
 import preprocess
 import build_dataset
+from constants import MODEL_TYPE
 from model import load_model
 
 
@@ -216,11 +217,13 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(description="Mutil domain machine translation evaluation")
     parser.add_argument("--data_dir", nargs='+', default=[])
     parser.add_argument("--test_data_dir", type=str)
+    parser.add_argument("--model_type", type=int)
 
     args = parser.parse_args()
 
     data_dir = args.data_dir
     test_data_dir = args.test_data_dir
+    model_type = args.model_type
 
     CONFIG = {
         "LEARNING_RATE": 1e-7,
@@ -237,6 +240,6 @@ if __name__ == '__main__':
         "N_EPOCHS": 1000000,
         "DOMAIN_EPS": 0.05,
         "CLIP": 1,
-        "MODEL_TYPE": "edc"
+        "MODEL_TYPE": MODEL_TYPE[model_type]
     }
     main()

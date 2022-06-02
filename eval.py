@@ -8,7 +8,8 @@ from tqdm import tqdm
 from mosestokenizer import *
 from torchtext.legacy.data import Field
 
-from transformer_pytorch.transformer import Encoder, Decoder, Seq2Seq
+from model import load_model
+from constants import MODEL_TYPE
 import preprocess
 
 
@@ -103,28 +104,19 @@ if __name__ == "__main__":
     parser.add_argument("--data_dir", type=str)
     parser.add_argument("--test_data_dir", type=str)
     parser.add_argument("--model_path", type=str)
+    parser.add_argument("--model_type", type=int)
 
     args = parser.parse_args()
 
     data_dir = args.data_dir
     test_data_dir = args.test_data_dir
     saved_model_path = args.model_path
+    model_type = args.model_type
 
-    CONFIG = {
-        "LEARNING_RATE": 1e-7,
-        "BATCH_SIZE": 32,
-        "HID_DIM": 512,
-        "ENC_LAYERS": 6,
-        "DEC_LAYERS": 6,
-        "ENC_HEADS": 4,
-        "DEC_HEADS": 4,
-        "ENC_PF_DIM": 1024,
-        "DEC_PF_DIM": 1024,
-        "ENC_DROPOUT": 0.2,
-        "DEC_DROPOUT": 0.2,
-        "N_EPOCHS": 1000000,
-        "CLIP": 1
-    }
+    CONFIG = {"LEARNING_RATE": 1e-7, "BATCH_SIZE": 32, "HID_DIM": 512, "ENC_LAYERS": 6, "DEC_LAYERS": 6, "ENC_HEADS": 4,
+              "DEC_HEADS": 4, "ENC_PF_DIM": 1024, "DEC_PF_DIM": 1024, "ENC_DROPOUT": 0.2, "DEC_DROPOUT": 0.2,
+              "N_EPOCHS": 1000000, "CLIP": 1, 'MODEL_TYPE': MODEL_TYPE[model_type]}
+
     tokenize_src = MosesTokenizer('en')
     tokenize_trg = MosesTokenizer("de")
     SRC = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
@@ -139,14 +131,10 @@ if __name__ == "__main__":
     TRG.build_vocab(train_data, min_freq=2)
     INPUT_DIM = len(SRC.vocab)
     OUTPUT_DIM = len(TRG.vocab)
-
-    enc = Encoder(INPUT_DIM, CONFIG['HID_DIM'], CONFIG['ENC_LAYERS'], CONFIG['ENC_HEADS'], CONFIG['ENC_PF_DIM'],
-                  CONFIG['ENC_DROPOUT'], _device)
-    dec = Decoder(OUTPUT_DIM, CONFIG['HID_DIM'], CONFIG['DEC_LAYERS'], CONFIG['DEC_HEADS'], CONFIG['DEC_PF_DIM'],
-                  CONFIG['DEC_DROPOUT'], _device)
     SRC_PAD_IDX = SRC.vocab.stoi[SRC.pad_token]
     TRC_PAD_IDX = TRG.vocab.stoi[TRG.pad_token]
-    _model = Seq2Seq(enc, dec, SRC_PAD_IDX, TRC_PAD_IDX, _device).to(_device)
+
+    _model = load_model(INPUT_DIM, OUTPUT_DIM, SRC_PAD_IDX, TRC_PAD_IDX, CONFIG, len(data_dir), _device)
     checkpoint = torch.load(saved_model_path, map_location=torch.device(_device))
     _model.load_state_dict(checkpoint['state_dict'])
     bleu_score = calculate_bleu(test_data, SRC, TRG, _model, _device)
