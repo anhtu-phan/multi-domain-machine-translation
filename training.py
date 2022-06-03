@@ -9,7 +9,6 @@ from transformer_pytorch.optim import SchedulerOptim
 from transformer_pytorch.loss import cal_performance, cal_domain_loss
 from constants import MODEL_TYPE, CONFIG
 from model import load_model
-import time
 
 
 def count_parameters(model):
@@ -22,7 +21,6 @@ def initialize_weights(m):
 
 
 def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging=False):
-    print(f"\n{'.'*10}Training{'.'*10}")
     model.train()
     epoch_loss, epoch_loss_domain, epoch_word_total, epoch_n_word_correct = 0, 0, 0, 0
     for i, batch in enumerate(tqdm(iterator)):
@@ -32,34 +30,24 @@ def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging
         src = batch.src
         trg = batch.trg
         domain = batch.domain
-        print(f"\n\n{'-' * 10} Batch {i} {'-' * 10}\n")
         optimizer.zero_grad()
-        backward_time = time.time()
         if mutil_domain:
             output, _, domain_prob = model(src, trg[:, :-1])
         else:
             output, _ = model(src, trg[:, :-1])
-        print(f"backward_time = {(time.time() - backward_time):.3f}\n")
 
         output_dim = output.shape[-1]
         output = output.contiguous().view(-1, output_dim)
         trg = trg[:, 1:].contiguous().view(-1)
 
-        cal_loss_time = time.time()
         loss, n_correct, n_word = cal_performance(output, trg, trg_pad_idx, True, 0.1)
-        print(f"cal_loss_time = {(time.time() - cal_loss_time):.3f}\n")
         if mutil_domain:
             l_mix = cal_domain_loss(domain, domain_prob)
             loss += l_mix
             epoch_loss_domain += l_mix.item()
 
-        cal_gradient_time = time.time()
         loss.backward()
-        print(f"cal_gradient_time = {(time.time() - cal_gradient_time):.3f}\n")
-
-        update_parameter_time = time.time()
         optimizer.step()
-        print(f"update_parameter_time = {(time.time() - update_parameter_time):.3f}\n")
 
         epoch_loss += loss.item()
         epoch_word_total += n_word
@@ -72,7 +60,6 @@ def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging
 
 
 def evaluate(model, iterator, trg_pad_idx, mutil_domain=False, debugging=False):
-    print(f"\n{'.'*10}Evaluating{'.'*10}")
     model.eval()
     epoch_loss, epoch_word_total, epoch_n_word_correct = 0, 0, 0
     with torch.no_grad():
@@ -113,7 +100,7 @@ def main():
 
     print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}\n")
     model_name = f'{CONFIG["MODEL_TYPE"]}.pt'
-    wandb_name = 'training-transformer-en2de-mutil-with-init'
+    wandb_name = f'{CONFIG["MODEL_TYPE"]}'
     saved_model_dir = './checkpoints/model_de_en/'
     saved_model_path = saved_model_dir+model_name
     best_valid_loss = float('inf')
