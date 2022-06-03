@@ -8,7 +8,7 @@ from model import load_model
 from constants import MODEL_TYPE, CONFIG
 
 
-def translate_sentence(sentence, src_field, trg_field, model, device, nb_domain, max_len=50, tokenizer=None, bpe=None):
+def translate_sentence(sentence, src_field, trg_field, model, device, nb_domain, max_len=50, tokenizer=None, bpe=None, model_type=MODEL_TYPE[0]):
     model.eval()
     if isinstance(sentence, str) and bpe is not None:
         sentence = bpe.process_line(sentence)
@@ -37,7 +37,7 @@ def translate_sentence(sentence, src_field, trg_field, model, device, nb_domain,
         trg_mask = model.make_trg_mask(trg_tensor)
 
         with torch.no_grad():
-            if len(data_dir) > 1 and CONFIG["MODEL_TYPE"] == MODEL_TYPE[1]:
+            if nb_domain > 1 and model_type == MODEL_TYPE[1]:
                 output, attention, _ = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)
             else:
                 output, attention = model.decoder(trg_tensor, enc_src, trg_mask, src_mask)

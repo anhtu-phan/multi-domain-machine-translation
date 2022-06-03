@@ -9,13 +9,9 @@ import build_dataset
 
 tokenize_src = MosesTokenizer('en')
 tokenize_trg = MosesTokenizer("de")
-src = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
-            batch_first=True)
-trg = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
-            batch_first=True)
 
 
-def load_data(data_dir, test_data_dir):
+def load_data(data_dir, test_data_dir, src, trg):
     if len(data_dir) > 1:
         domain = LabelField()
         for i, d in enumerate(data_dir):
@@ -55,7 +51,12 @@ def load_data(data_dir, test_data_dir):
 
 
 def load_model(config, data_dir, test_data_dir, device):
-    train_data, valid_data, test_data, bpe = load_data(data_dir, test_data_dir)
+    src = Field(tokenize=tokenize_src, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
+                batch_first=True)
+    trg = Field(tokenize=tokenize_trg, init_token='<sos>', eos_token='<eos>', fix_length=100, lower=True,
+                batch_first=True)
+
+    train_data, valid_data, test_data, bpe = load_data(data_dir, test_data_dir, src, trg)
 
     input_dim = len(src.vocab)
     output_dim = len(trg.vocab)

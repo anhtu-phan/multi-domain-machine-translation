@@ -16,18 +16,29 @@ def index():
     return render_template('index.html')
 
 
+def decode_bpe(words):
+    sentence = []
+    for w in words:
+        if w == '@':
+            continue
+        w.replace("@", "")
+        if w.strip() != '':
+            sentence.append(w)
+    return " ".join(sentence)
+
+
 @app.route('/', methods=['POST'])
 def index_post():
     input_sentence = request.form['input_sentence'].strip()
     result = []
-    r, _ = translate_sentence(input_sentence, model_src, model_trg, _model, device, 1, 100, tokenize_src, model_bpe)
-    result.append({"model_type": "News+TED", "result": r})
-    r, _ = translate_sentence(input_sentence, model_edc_src, model_edc_trg, _model_edc, device, 2, 100, tokenize_src, model_edc_bpe)
-    result.append({"model_type": "E/DC", "result": r})
-    r, _ = translate_sentence(input_sentence, model_edc_with_int_src, model_edc_with_int_trg, _model_edc_with_int, 2, 100, tokenize_src, model_edc_with_int_bpe)
-    result.append({"model_type": "E/DC with init", "result": r})
-    r, _ = translate_sentence(input_sentence, model_encoder_src, model_encoder_trg, _model_encoder, device, 2, 100, tokenize_src, model_encoder_bpe)
-    result.append({"model_type": "Encoder", "result": r})
+    r, _ = translate_sentence(input_sentence, model_src, model_trg, _model, device, 1, 100, tokenize_src, model_bpe, MODEL_TYPE[0])
+    result.append({"model_type": "direct-training", "result": decode_bpe(r[:-1])})
+    r, _ = translate_sentence(input_sentence, model_edc_src, model_edc_trg, _model_edc, device, 2, 100, tokenize_src, model_edc_bpe, MODEL_TYPE[1])
+    result.append({"model_type": "E/DC", "result": decode_bpe(r[:-1])})
+    r, _ = translate_sentence(input_sentence, model_edc_with_int_src, model_edc_with_int_trg, _model_edc_with_int, device, 2, 100, tokenize_src, model_edc_with_int_bpe, MODEL_TYPE[1])
+    result.append({"model_type": "E/DC-with-init", "result": decode_bpe(r[:-1])})
+    r, _ = translate_sentence(input_sentence, model_encoder_src, model_encoder_trg, _model_encoder, device, 2, 100, tokenize_src, model_encoder_bpe, MODEL_TYPE[2])
+    result.append({"model_type": "Encoder", "result": decode_bpe(r[:-1])})
     return render_template('index.html', result=result, input_sentence=input_sentence)
 
 
@@ -57,16 +68,14 @@ if __name__ == '__main__':
 
     sys.stderr.write(f"Load EDC with init model ...\n")
 
-    _model_edc_with_int, _, _, _, model_edc_with_int_src, model_edc_with_int_trg, model_edc_with_int_bpe = \
-        load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
+    _model_edc_with_int, _, _, _, model_edc_with_int_src, model_edc_with_int_trg, model_edc_with_int_bpe = load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
     checkpoint = torch.load("./checkpoints/model_de_en/model_mutil_with_init.pt", map_location=torch.device(device))
     _model_edc_with_int.load_state_dict(checkpoint['state_dict'])
 
     sys.stderr.write(f"Load Encoder model ...\n")
 
     CONFIG["MODEL_TYPE"] = MODEL_TYPE[2]
-    _model_encoder, _, _, _, model_encoder_src, model_encoder_trg, model_encoder_bpe \
-        = load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
+    _model_encoder, _, _, _, model_encoder_src, model_encoder_trg, model_encoder_bpe = load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
     checkpoint = torch.load("./checkpoints/model_de_en/encoder_mutil_with_init.pt", map_location=torch.device(device))
     _model_encoder.load_state_dict(checkpoint['state_dict'])
 
