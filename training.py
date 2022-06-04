@@ -29,7 +29,6 @@ def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging
 
         src = batch.src
         trg = batch.trg
-        domain = batch.domain
         optimizer.zero_grad()
         if mutil_domain:
             output, _, domain_prob = model(src, trg[:, :-1])
@@ -42,6 +41,7 @@ def train(model, iterator, optimizer, trg_pad_idx, mutil_domain=False, debugging
 
         loss, n_correct, n_word = cal_performance(output, trg, trg_pad_idx, True, 0.1)
         if mutil_domain:
+            domain = batch.domain
             l_mix = cal_domain_loss(domain, domain_prob)
             loss += l_mix
             epoch_loss_domain += l_mix.item()
