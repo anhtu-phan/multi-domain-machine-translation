@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-#SBATCH --job-name=direct
-#SBATCH --output=nmt_training_output_direct_training.txt
+#SBATCH --job-name=encoder
+#SBATCH --output=nmt_training_output_encoder_same_domain_matrix.txt
 #SBATCH --ntasks=1
 #SBATCH --partition=students
 #SBATCH --gres=gpu:mem11g:1

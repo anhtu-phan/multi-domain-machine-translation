@@ -136,9 +136,7 @@ class MultiHeadAttentionLayer(nn.Module):
         self.device = device
         self.n_domain = n_domain
         self.domain_eps = domain_eps
-        self.fc_rq = nn.Linear(hid_dim, n_domain).to(device)
-        self.fc_rk = nn.Linear(hid_dim, n_domain).to(device)
-        self.fc_rv = nn.Linear(hid_dim, n_domain).to(device)
+        self.fc_r = nn.Linear(hid_dim, n_domain).to(device)
 
         self.hid_dim = hid_dim
         self.n_heads = n_heads
@@ -157,11 +155,11 @@ class MultiHeadAttentionLayer(nn.Module):
     def forward(self, query, key, value, mask=None):
         batch_size = query.shape[0]
         # [batch_size, query_len, n_domain]
-        dq = (1 - self.domain_eps) * torch.softmax(self.fc_rq(query), dim=-1) + self.domain_eps / self.n_domain
+        dq = (1 - self.domain_eps) * torch.softmax(self.fc_r(query), dim=-1) + self.domain_eps / self.n_domain
         q = torch.zeros(query.shape).to(self.device)
-        dk = (1 - self.domain_eps) * torch.softmax(self.fc_rk(key), dim=-1) + self.domain_eps / self.n_domain
+        dk = (1 - self.domain_eps) * torch.softmax(self.fc_r(key), dim=-1) + self.domain_eps / self.n_domain
         k = torch.zeros(key.shape).to(self.device)
-        dv = (1 - self.domain_eps) * torch.softmax(self.fc_rv(value), dim=-1) + self.domain_eps / self.n_domain
+        dv = (1 - self.domain_eps) * torch.softmax(self.fc_r(value), dim=-1) + self.domain_eps / self.n_domain
         v = torch.zeros(value.shape).to(self.device)
         # d = (dq + dk + dv)/3
 

@@ -99,8 +99,8 @@ def main():
                                                                           device=device)
 
     print(f"{'-'*10}number of parameters = {count_parameters(_model)}{'-'*10}\n")
-    model_name = f'{CONFIG["MODEL_TYPE"]}.pt'
-    wandb_name = f'{CONFIG["MODEL_TYPE"]}'
+    model_name = f'{CONFIG["MODEL_TYPE"]}_same_domain_matrix.pt'
+    wandb_name = f'{CONFIG["MODEL_TYPE"]}_same_domain_matrix'
     saved_model_dir = './checkpoints/model_de_en/'
     saved_model_path = saved_model_dir+model_name
     best_valid_loss = float('inf')
