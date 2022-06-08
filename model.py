@@ -12,38 +12,32 @@ tokenize_trg = MosesTokenizer("de")
 
 
 def load_data(data_dir, test_data_dir, src, trg):
-    if len(data_dir) > 1:
-        domain = LabelField()
-        for i, d in enumerate(data_dir):
-            train_type, valid_type, test_type, bpe = preprocess.build_bpe_data(d, test_data_dir)
-            tr = build_dataset.build_data(train_type, 'src', 'trg', i)
-            v = build_dataset.build_data(valid_type, 'src', 'trg', i)
-            te = build_dataset.build_data(test_type, 'src', 'trg', i)
-            if i == 0:
-                train_data = tr
-                valid_data = v
-                # test_data = te
-            else:
-                train_data = pd.concat([train_data, tr])
-                valid_data = pd.concat([valid_data, v])
-                # test_data = pd.concat([test_data, te])
-        train_data.to_csv(f"{data_dir[0]}/train_combined.tsv", sep="\t", index=False)
-        valid_data.to_csv(f"{data_dir[0]}/valid_combined.tsv", sep="\t", index=False)
-        te.to_csv(f"{data_dir[0]}/test_combined.tsv", sep="\t", index=False)
+    domain = LabelField()
+    for i, d in enumerate(data_dir):
+        train_type, valid_type, test_type, bpe = preprocess.build_bpe_data(d, test_data_dir)
+        tr = build_dataset.build_data(train_type, 'src', 'trg', i)
+        v = build_dataset.build_data(valid_type, 'src', 'trg', i)
+        te = build_dataset.build_data(test_type, 'src', 'trg', i)
+        if i == 0:
+            train_data = tr
+            valid_data = v
+            # test_data = te
+        else:
+            train_data = pd.concat([train_data, tr])
+            valid_data = pd.concat([valid_data, v])
+            # test_data = pd.concat([test_data, te])
+    train_data.to_csv(f"{data_dir[0]}/train_combined.tsv", sep="\t", index=False)
+    valid_data.to_csv(f"{data_dir[0]}/valid_combined.tsv", sep="\t", index=False)
+    te.to_csv(f"{data_dir[0]}/test_combined.tsv", sep="\t", index=False)
 
-        fields = [('src', src), ('trg', trg), ('domain', domain)]
+    fields = [('src', src), ('trg', trg), ('domain', domain)]
 
-        train_data, valid_data, test_data = TabularDataset.splits(path=data_dir[0], train='train_combined.tsv',
-                                                                  test='test_combined.tsv',
-                                                                  validation='valid_combined.tsv',
-                                                                  format='tsv',
-                                                                  fields=fields, skip_header=True)
-        domain.build_vocab(train_data)
-    else:
-        train_data, valid_data, test_data, bpe = preprocess.read_data(src, trg, data_folder=data_dir[0],
-                                                                      test_data_folder=test_data_dir,
-                                                                      use_bpe=True, max_length=100)
-
+    train_data, valid_data, test_data = TabularDataset.splits(path=data_dir[0], train='train_combined.tsv',
+                                                              test='test_combined.tsv',
+                                                              validation='valid_combined.tsv',
+                                                              format='tsv',
+                                                              fields=fields, skip_header=True)
+    domain.build_vocab(train_data)
     src.build_vocab(train_data, min_freq=2)
     trg.build_vocab(train_data, min_freq=2)
 
@@ -62,8 +56,9 @@ def load_model(config, data_dir, test_data_dir, device):
     output_dim = len(trg.vocab)
     src_pad_idx = src.vocab.stoi[src.pad_token]
     trg_pad_idx = trg.vocab.stoi[trg.pad_token]
+    print(f"{'-' * 10}INPUT-DIM = {input_dim}{'-' * 10}")
 
-    if len(data_dir) > 1:
+    if config['MODEL_TYPE'] != MODEL_TYPE[0]:
         enc = DomainEncoder(input_dim, config['HID_DIM'], config['ENC_LAYERS'], config['ENC_HEADS'],
                             config['ENC_PF_DIM'], config['ENC_DROPOUT'], len(data_dir), config['DOMAIN_EPS'], device)
         if config['MODEL_TYPE'] == MODEL_TYPE[2]:
