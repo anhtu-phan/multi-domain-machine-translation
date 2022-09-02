@@ -18,7 +18,7 @@
 - `data_dir_mixed`: folder store mixed dataset to run original transformer architecture
 - `data_dir_domain`: list folder store domain data
 
-`python run_demo_server.py --data_dir_mixed ./datatset/de-en/mixed --data_dir_domain ./datatset/de-en/news ./datatset/de-en/ted` 
+`python run_demo_server.py --data_dir_mixed ./datasets/de-en/mixed --data_dir_domain ./datasets/de-en/news ./dataset/de-en/ted` 
 
 ### Training
     
@@ -32,11 +32,11 @@
   + `1`: edc (modified transformer with domain proportion plugged in both encoder and decoder)
   + `2`: encoder (modified transformer with domain proportion plugged just in encoder)
 
-`python training.py --data_dir ./datatset/de-en/mixed --model_type 0`: training with original transformer
+`python training.py --data_dir ./datasets/de-en/mixed --model_type 0`: training with original transformer
 
-`python training.py --data_dir ./datatset/de-en/news ./datatset/de-en/ted --model_type 1`: training with edc
+`python training.py --data_dir ./datasets/de-en/news ./datasets/de-en/ted --model_type 1`: training with edc
 
-`python training.py --data_dir ./datatset/de-en/news ./datatset/de-en/ted --model_type 2`: training with encoder
+`python training.py --data_dir ./datasets/de-en/news ./datasets/de-en/ted --model_type 2`: training with encoder
 
 
 
