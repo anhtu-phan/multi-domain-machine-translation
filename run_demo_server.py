@@ -33,10 +33,10 @@ def index_post():
     result = []
     r, _ = translate_sentence(input_sentence, model_src, model_trg, _model, device, 1, 100, tokenize_src, model_bpe, MODEL_TYPE[0])
     result.append({"model_type": "direct-training", "result": decode_bpe(r[:-1])})
-    r, _ = translate_sentence(input_sentence, model_edc_src, model_edc_trg, _model_edc, device, 2, 100, tokenize_src, model_edc_bpe, MODEL_TYPE[1])
-    result.append({"model_type": "E/DC", "result": decode_bpe(r[:-1])})
-    r, _ = translate_sentence(input_sentence, model_edc_with_int_src, model_edc_with_int_trg, _model_edc_with_int, device, 2, 100, tokenize_src, model_edc_with_int_bpe, MODEL_TYPE[1])
-    result.append({"model_type": "E/DC-with-init", "result": decode_bpe(r[:-1])})
+    # r, _ = translate_sentence(input_sentence, model_edc_src, model_edc_trg, _model_edc, device, 2, 100, tokenize_src, model_edc_bpe, MODEL_TYPE[1])
+    # result.append({"model_type": "E/DC", "result": decode_bpe(r[:-1])})
+    # r, _ = translate_sentence(input_sentence, model_edc_with_int_src, model_edc_with_int_trg, _model_edc_with_int, device, 2, 100, tokenize_src, model_edc_with_int_bpe, MODEL_TYPE[1])
+    # result.append({"model_type": "E/DC-with-init", "result": decode_bpe(r[:-1])})
     r, _ = translate_sentence(input_sentence, model_encoder_src, model_encoder_trg, _model_encoder, device, 2, 100, tokenize_src, model_encoder_bpe, MODEL_TYPE[2])
     result.append({"model_type": "Encoder", "result": decode_bpe(r[:-1])})
     return render_template('index.html', result=result, input_sentence=input_sentence)
@@ -62,15 +62,15 @@ if __name__ == '__main__':
 
     sys.stderr.write(f"Load EDC model ...\n")
 
-    _model_edc, _, _, _, model_edc_src, model_edc_trg, model_edc_bpe = load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
-    checkpoint = torch.load("./checkpoints/model_de_en/model_mutil.pt", map_location=torch.device(device))
-    _model_edc.load_state_dict(checkpoint['state_dict'])
+    # _model_edc, _, _, _, model_edc_src, model_edc_trg, model_edc_bpe = load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
+    # checkpoint = torch.load("./checkpoints/model_de_en/model_mutil.pt", map_location=torch.device(device))
+    # _model_edc.load_state_dict(checkpoint['state_dict'])
 
     sys.stderr.write(f"Load EDC with init model ...\n")
 
-    _model_edc_with_int, _, _, _, model_edc_with_int_src, model_edc_with_int_trg, model_edc_with_int_bpe = load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
-    checkpoint = torch.load("./checkpoints/model_de_en/model_mutil_with_init.pt", map_location=torch.device(device))
-    _model_edc_with_int.load_state_dict(checkpoint['state_dict'])
+    # _model_edc_with_int, _, _, _, model_edc_with_int_src, model_edc_with_int_trg, model_edc_with_int_bpe = load_model(CONFIG, data_dir_domain, data_dir_domain[0], device)
+    # checkpoint = torch.load("./checkpoints/model_de_en/model_mutil_with_init.pt", map_location=torch.device(device))
+    # _model_edc_with_int.load_state_dict(checkpoint['state_dict'])
 
     sys.stderr.write(f"Load Encoder model ...\n")
 
