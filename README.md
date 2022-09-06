@@ -18,7 +18,8 @@
 - `data_dir_mixed`: folder store mixed dataset to run original transformer architecture
 - `data_dir_domain`: list folder store domain data
 
-`python run_demo_server.py --data_dir_mixed ./datasets/de-en/mixed --data_dir_domain ./datasets/de-en/news ./dataset/de-en/ted` 
+Example: Download trained models from <a href='https://drive.google.com/file/d/1CA0FV9Dnu0xsL6v5OurE_KIOTOR2z_tE/view?usp=sharing'>here</a> and place to project folder and run command:
+`python run_demo_server.py --data_dir_mixed ./datasets/de-en/mixed --data_dir_domain ./datasets/de-en/news ./datasets/de-en/ted` 
 
 ### Training
     
